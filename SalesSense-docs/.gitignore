@@ -1,0 +1,39 @@
+# --- Environment / secrets ---
+.env
+.env.local
+*.env
+
+# --- Node / frontend ---
+node_modules/
+dist/
+build/
+.vite/
+*.log
+
+# --- Python / backend ---
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+
+# --- ML artifacts ---
+*.h5
+*.keras
+*.pkl
+*.joblib
+checkpoints/
+mlruns/
+
+# --- Data (don't commit raw/processed datasets — pull via ingest script) ---
+data/raw/
+data/processed/
+*.csv
+*.parquet
+
+# --- OS / editor ---
+.DS_Store
+.vscode/
+.idea/
