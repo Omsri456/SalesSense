@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:client": "vite",
+    "dev:server": "cd salessense-backend && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload",
+    "dev:all": "start cmd /k \"cd salessense-backend && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload\" && vite",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview"

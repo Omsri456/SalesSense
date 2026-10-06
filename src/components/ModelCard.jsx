@@ -4,21 +4,25 @@ const typeIcon = {
   'Deep Learning': BrainCircuit,
   Statistical: Sigma,
   'Additive Model': Waves,
-  'Gradient Boosting': TreeDeciduous,
 }
 
-export default function ModelCard({ model, isTraining, progress, isSelected, onSelect, onTrain }) {
+export default function ModelCard({ model, isTraining, progress, isSelected, isBestModel, onSelect, onTrain }) {
   const Icon = typeIcon[model.type] ?? BrainCircuit
 
   return (
     <div
       onClick={() => onSelect(model.id)}
-      className={`cursor-pointer rounded-2xl border bg-white p-5 shadow-sm transition-all dark:bg-slate-800/60 ${
+      className={`relative cursor-pointer rounded-2xl border bg-white p-5 shadow-sm transition-all dark:bg-slate-800/60 ${
         isSelected
           ? 'border-primary ring-2 ring-primary/20'
           : 'border-slate-200 hover:border-primary/40 dark:border-white/10'
       }`}
     >
+      {isBestModel && (
+        <div className="absolute -top-3 right-4 rounded-full bg-gradient-to-r from-amber-500 to-emerald-500 px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm">
+          ★ Champion (Best Model)
+        </div>
+      )}
       <div className="flex items-start justify-between">
         <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
           <Icon className="h-5 w-5" />

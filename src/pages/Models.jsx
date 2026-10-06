@@ -66,11 +66,39 @@ export default function Models() {
   }
 
   const selectedModel = models.find((m) => m.id === selectedId) ?? models[0]
+  const bestModel = [...models].sort((a, b) => b.accuracy - a.accuracy)[0]
 
   return (
-    <DashboardLayout title="Model Training">
+    <DashboardLayout title="Model Training & Evaluation">
       <div className="space-y-6">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {/* Champion Model Banner */}
+        <div className="flex flex-col gap-4 rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent p-5 sm:flex-row sm:items-center sm:justify-between dark:border-emerald-500/30">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-xs font-bold text-white shadow-sm">
+                ★
+              </span>
+              <span className="text-xs font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+                Automated Best Model Selection
+              </span>
+            </div>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+              Champion Model: <span className="text-emerald-600 dark:text-emerald-400">{bestModel.name}</span> ({bestModel.accuracy.toFixed(1)}% Accuracy)
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              SalesSense automatically evaluates all trained models and selects the lowest error model (lowest wMAPE/RMSE) to power default forecast and inventory decisions.
+            </p>
+          </div>
+          <button
+            onClick={() => setSelectedId(bestModel.id)}
+            className="inline-flex shrink-0 items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+          >
+            Inspect Champion Model
+          </button>
+        </div>
+
+        {/* 3-Model Grid */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {models.map((model) => (
             <ModelCard
               key={model.id}
@@ -78,6 +106,7 @@ export default function Models() {
               isTraining={progressById[model.id] !== undefined}
               progress={progressById[model.id] ?? 0}
               isSelected={selectedId === model.id}
+              isBestModel={model.id === bestModel.id}
               onSelect={setSelectedId}
               onTrain={handleTrain}
             />

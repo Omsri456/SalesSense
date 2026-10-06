@@ -48,17 +48,4 @@ export const initialModels = [
     status: 'trained',
     hyperparameters: { 'Changepoint prior scale': 0.05, 'Seasonality mode': 'multiplicative', Holidays: 'US Retail' },
   },
-  {
-    id: 'xgboost',
-    name: 'XGBoost',
-    type: 'Gradient Boosting',
-    description: 'Tree ensemble using lag features and rolling statistics.',
-    accuracy: 93.4,
-    mae: 845,
-    rmse: 1180,
-    trainingTimeSec: 91,
-    trainedAt: 'Never trained',
-    status: 'idle',
-    hyperparameters: { Estimators: 300, 'Max depth': 6, 'Learning rate': 0.05, 'Lag features': 12 },
-  },
 ].map((m) => ({ ...m, epochHistory: m.status === 'trained' ? buildEpochHistory(m.accuracy) : [] }))

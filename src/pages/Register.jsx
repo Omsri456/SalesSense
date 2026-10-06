@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Eye, EyeOff, UserPlus } from 'lucide-react'
+import { Eye, EyeOff, UserPlus, AlertCircle } from 'lucide-react'
 import AuthCard from '../components/AuthCard'
 import FormField from '../components/FormField'
 import RoleSelector from '../components/RoleSelector'
 import SocialLoginButtons from '../components/SocialLoginButtons'
+import { useAuth } from '../context/AuthContext'
 
 function validate({ name, email, password, confirmPassword }) {
   const errors = {}
@@ -19,34 +20,52 @@ function validate({ name, email, password, confirmPassword }) {
 
 export default function Register() {
   const navigate = useNavigate()
+  const { register } = useAuth()
   const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '' })
   const [role, setRole] = useState('retailer')
   const [errors, setErrors] = useState({})
+  const [serverError, setServerError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   const handleChange = (field) => (e) => {
     setForm((f) => ({ ...f, [field]: e.target.value }))
     if (errors[field]) setErrors((er) => ({ ...er, [field]: undefined }))
+    if (serverError) setServerError('')
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     const v = validate(form)
     setErrors(v)
     if (Object.keys(v).length > 0) return
 
-    // No backend yet — UI-only. Simulate a request, then route to dashboard.
     setSubmitting(true)
-    setTimeout(() => {
-      setSubmitting(false)
+    setServerError('')
+    try {
+      await register({
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        role,
+      })
       navigate('/dashboard')
-    }, 700)
+    } catch (err) {
+      setServerError(err.message || 'Registration failed. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
     <AuthCard title="Create your account" subtitle="Start forecasting in a few minutes">
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        {serverError && (
+          <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-400">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{serverError}</span>
+          </div>
+        )}
         <FormField
           label="Full name"
           type="text"

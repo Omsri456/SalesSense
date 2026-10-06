@@ -35,7 +35,10 @@ export default function ForecastControls({ sku, onSku, modelId, onModel, horizon
         </label>
 
         <div>
-          <span className="text-xs font-mono uppercase tracking-widest text-slate-400">Model</span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono uppercase tracking-widest text-slate-400">Model</span>
+            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">★ Auto-Selected: LSTM</span>
+          </div>
           <div className="mt-1.5 flex gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-white/10 dark:bg-slate-900/60">
             {modelOptions.map((m) => (
               <button
@@ -47,7 +50,7 @@ export default function ForecastControls({ sku, onSku, modelId, onModel, horizon
                     : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                 }`}
               >
-                {m.label}
+                {m.label} {m.value === 'lstm' ? '★' : ''}
               </button>
             ))}
           </div>

@@ -3,24 +3,30 @@ import { Link } from 'react-router-dom'
 import { Mail, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import AuthCard from '../components/AuthCard'
 import FormField from '../components/FormField'
+import { useAuth } from '../context/AuthContext'
 
 export default function ForgotPassword() {
+  const { requestPasswordReset } = useAuth()
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [sent, setSent] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!email) return setError('Email is required.')
     if (!/^\S+@\S+\.\S+$/.test(email)) return setError('Enter a valid email address.')
     setError('')
 
     setSubmitting(true)
-    setTimeout(() => {
-      setSubmitting(false)
+    try {
+      await requestPasswordReset(email)
       setSent(true)
-    }, 700)
+    } catch (err) {
+      setError(err.message || 'Failed to dispatch password reset request.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   if (sent) {

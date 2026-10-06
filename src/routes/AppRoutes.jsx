@@ -5,34 +5,108 @@ import DatasetUpload from '../pages/DatasetUpload'
 import Login from '../pages/Login'
 import Register from '../pages/Register'
 import ForgotPassword from '../pages/ForgotPassword'
-import ComingSoon from '../pages/ComingSoon'
 import Inventory from '../pages/Inventory'
 import Forecast from '../pages/Forecast'
 import Models from '../pages/Models'
 import Reports from '../pages/Reports'
+import Profile from '../pages/Profile'
+import Settings from '../pages/Settings'
+import ProtectedRoute from './ProtectedRoute'
 
-// Landing, auth, Dashboard, Datasets, Inventory, Forecast, Models, and
-// Reports are fully built. Remaining routes from the spec are scaffolded
-// here so navigation and folder structure are ready for the next pass.
 export default function AppRoutes() {
   return (
     <Routes>
+      {/* Public Pages */}
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/datasets" element={<DatasetUpload />} />
-      <Route path="/preprocessing" element={<ComingSoon title="Data preprocessing" />} />
-      <Route path="/models" element={<Models />} />
-      <Route path="/forecast" element={<Forecast />} />
-      <Route path="/comparison" element={<ComingSoon title="Model comparison" />} />
-      <Route path="/products" element={<ComingSoon title="Product forecasting" />} />
-      <Route path="/inventory" element={<Inventory />} />
-      <Route path="/alerts" element={<ComingSoon title="Alerts" />} />
-      <Route path="/reports" element={<Reports />} />
-      <Route path="/settings" element={<ComingSoon title="Settings" />} />
-      <Route path="/profile" element={<ComingSoon title="Profile" />} />
+
+      {/* General Authenticated Core Views */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/forecast"
+        element={
+          <ProtectedRoute>
+            <Forecast />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/reports"
+        element={
+          <ProtectedRoute>
+            <Reports />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Settings />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Role Restricted: ML Engineer & Admin */}
+      <Route
+        path="/datasets"
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'ml_engineer']}>
+            <DatasetUpload />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/models"
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'ml_engineer']}>
+            <Models />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/comparison"
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'ml_engineer']}>
+            <Models />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Role Restricted: Store / Inventory Manager & Admin */}
+      <Route
+        path="/inventory"
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'retailer']}>
+            <Inventory />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/alerts"
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'retailer']}>
+            <Inventory />
+          </ProtectedRoute>
+        }
+      />
     </Routes>
   )
 }

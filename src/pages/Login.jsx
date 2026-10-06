@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Eye, EyeOff, LogIn } from 'lucide-react'
+import { Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react'
 import AuthCard from '../components/AuthCard'
 import FormField from '../components/FormField'
 import SocialLoginButtons from '../components/SocialLoginButtons'
+import { useAuth } from '../context/AuthContext'
 
 function validate({ email, password }) {
   const errors = {}
@@ -16,33 +17,46 @@ function validate({ email, password }) {
 
 export default function Login() {
   const navigate = useNavigate()
+  const { login } = useAuth()
   const [form, setForm] = useState({ email: '', password: '' })
   const [errors, setErrors] = useState({})
+  const [serverError, setServerError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   const handleChange = (field) => (e) => {
     setForm((f) => ({ ...f, [field]: e.target.value }))
     if (errors[field]) setErrors((er) => ({ ...er, [field]: undefined }))
+    if (serverError) setServerError('')
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     const v = validate(form)
     setErrors(v)
     if (Object.keys(v).length > 0) return
 
-    // No backend yet — this is UI-only. Simulate a request, then route to dashboard.
     setSubmitting(true)
-    setTimeout(() => {
-      setSubmitting(false)
+    setServerError('')
+    try {
+      await login({ email: form.email, password: form.password })
       navigate('/dashboard')
-    }, 700)
+    } catch (err) {
+      setServerError(err.message || 'Invalid email or password.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
     <AuthCard title="Welcome back" subtitle="Log in to continue to your dashboard">
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        {serverError && (
+          <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-400">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{serverError}</span>
+          </div>
+        )}
         <FormField
           label="Email"
           type="email"

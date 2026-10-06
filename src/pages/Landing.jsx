@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowRight, PlayCircle } from 'lucide-react'
 import Navbar from '../components/Navbar'
@@ -50,20 +51,20 @@ export default function Landing() {
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-4">
-              <a
-                href="\register"
+              <Link
+                to="/register"
                 className="group inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/30 transition-transform hover:scale-[1.03] active:scale-[0.98]"
               >
                 Get Started
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-              </a>
-              <a
-                href="\dashboard"
+              </Link>
+              <Link
+                to="/dashboard"
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-primary hover:text-primary dark:border-white/10 dark:bg-slate-800 dark:text-slate-200"
               >
                 <PlayCircle className="h-4 w-4" />
                 View Dashboard
-              </a>
+              </Link>
             </div>
           </motion.div>
 
