@@ -205,7 +205,9 @@ export default function Dashboard() {
       {/* Charts */}
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <SalesTrendChart
-          data={activeForecast.chartData?.slice(0, 6)?.map(d => ({ month: d.month, actual: d.actual })) || fallbackSalesTrend}
+          data={
+            activeForecast.chartData?.filter(d => d.actual != null)?.map(d => ({ month: d.month, sales: d.actual })) || fallbackSalesTrend
+          }
           subtitle={sku === 'all' ? 'Historical demand observations' : `Historical demand · ${sku}`}
         />
         <ForecastGraphChart

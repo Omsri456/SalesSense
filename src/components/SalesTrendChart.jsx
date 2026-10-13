@@ -2,6 +2,11 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { salesTrend as defaultSalesTrend } from '../data/dashboardData'
 
 export default function SalesTrendChart({ data = defaultSalesTrend, subtitle = 'Last 12 months' }) {
+  const chartData = (data || []).map((d) => ({
+    ...d,
+    sales: d.sales ?? d.actual ?? 0,
+  }))
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-800/60">
       <div className="mb-4 flex items-center justify-between">
@@ -9,7 +14,7 @@ export default function SalesTrendChart({ data = defaultSalesTrend, subtitle = '
         <span className="text-xs font-mono text-slate-400">{subtitle}</span>
       </div>
       <ResponsiveContainer width="100%" height={220}>
-        <AreaChart data={data} margin={{ left: -20, right: 10 }}>
+        <AreaChart data={chartData} margin={{ left: -20, right: 10 }}>
           <defs>
             <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#2563EB" stopOpacity={0.3} />

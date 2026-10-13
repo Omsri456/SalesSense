@@ -27,6 +27,7 @@ class ChartDataPoint(BaseModel):
     month: str
     actual: Optional[int] = None
     forecast: Optional[int] = None
+    predicted: Optional[int] = None
     low: Optional[int] = None
     high: Optional[int] = None
 

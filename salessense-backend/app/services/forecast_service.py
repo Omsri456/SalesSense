@@ -94,9 +94,18 @@ class ForecastService:
         recent_months = monthly_groups.tail(6)
 
         chart_points: List[ChartDataPoint] = []
-        for period, total_sales in recent_months.items():
+        recent_list = list(recent_months.items())
+        for idx, (period, total_sales) in enumerate(recent_list):
             m_label = period.strftime("%b")
-            chart_points.append(ChartDataPoint(month=m_label, actual=int(total_sales)))
+            is_last = idx == len(recent_list) - 1
+            chart_points.append(
+                ChartDataPoint(
+                    month=m_label,
+                    actual=int(total_sales),
+                    forecast=int(total_sales) if is_last else None,
+                    predicted=int(total_sales) if is_last else None,
+                )
+            )
 
         baseline_sales = int(recent_months.iloc[-1]) if len(recent_months) > 0 else 1000
 
@@ -133,7 +142,7 @@ class ForecastService:
                 ForecastDataPoint(month=m_label, predicted=predicted_val, low=low, high=high)
             )
             chart_points.append(
-                ChartDataPoint(month=m_label, forecast=predicted_val, low=low, high=high)
+                ChartDataPoint(month=m_label, forecast=predicted_val, predicted=predicted_val, low=low, high=high)
             )
 
         growth_pct = round(((curr_month_sales - baseline_sales) / max(1, baseline_sales)) * 100, 1)

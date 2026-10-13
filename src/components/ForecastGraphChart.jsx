@@ -2,6 +2,12 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Ca
 import { forecastGraph as defaultForecastGraph } from '../data/dashboardData'
 
 export default function ForecastGraphChart({ data = defaultForecastGraph, subtitle = 'Actual vs predicted' }) {
+  const chartData = (data || []).map((d) => ({
+    ...d,
+    actual: d.actual !== undefined ? d.actual : null,
+    predicted: d.predicted ?? d.forecast ?? null,
+  }))
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-800/60">
       <div className="mb-4 flex items-center justify-between">
@@ -9,7 +15,7 @@ export default function ForecastGraphChart({ data = defaultForecastGraph, subtit
         <span className="text-xs font-mono text-slate-400">{subtitle}</span>
       </div>
       <ResponsiveContainer width="100%" height={220}>
-        <LineChart data={data} margin={{ left: -20, right: 10 }}>
+        <LineChart data={chartData} margin={{ left: -20, right: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
           <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />

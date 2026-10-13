@@ -112,6 +112,75 @@ export default function Login() {
         <SocialLoginButtons />
       </form>
 
+      {/* Demo RBAC Quick-Access for Academic Presentations */}
+      <div className="mt-6 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 dark:border-white/10 dark:bg-white/5">
+        <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/60 dark:border-white/5">
+          <span className="text-[11px] font-semibold tracking-wider uppercase text-slate-500 dark:text-slate-400">
+            Role-Based Demo Access
+          </span>
+          <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary">
+            Quick Fill
+          </span>
+        </div>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2.5">
+          Select an authentic persona to test role-scoped permissions and dataset isolation:
+        </p>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <button
+            type="button"
+            disabled={submitting}
+            onClick={() => {
+              setForm({ email: 'retailer1@salessense.com', password: 'Password123!' })
+              setErrors({})
+              setServerError('')
+            }}
+            className="flex flex-col items-start rounded-lg border border-slate-200 bg-white p-2 text-left hover:border-primary/50 hover:bg-primary/5 transition dark:border-white/10 dark:bg-white/5 dark:hover:bg-primary/10"
+          >
+            <span className="font-semibold text-slate-800 dark:text-slate-200">Retailer (Store 1)</span>
+            <span className="text-[10px] text-slate-400 font-mono">STORE_01 scope</span>
+          </button>
+          <button
+            type="button"
+            disabled={submitting}
+            onClick={() => {
+              setForm({ email: 'retailer2@salessense.com', password: 'Password123!' })
+              setErrors({})
+              setServerError('')
+            }}
+            className="flex flex-col items-start rounded-lg border border-slate-200 bg-white p-2 text-left hover:border-primary/50 hover:bg-primary/5 transition dark:border-white/10 dark:bg-white/5 dark:hover:bg-primary/10"
+          >
+            <span className="font-semibold text-slate-800 dark:text-slate-200">Retailer (Store 2)</span>
+            <span className="text-[10px] text-slate-400 font-mono">STORE_02 scope</span>
+          </button>
+          <button
+            type="button"
+            disabled={submitting}
+            onClick={() => {
+              setForm({ email: 'mle@salessense.com', password: 'Password123!' })
+              setErrors({})
+              setServerError('')
+            }}
+            className="flex flex-col items-start rounded-lg border border-slate-200 bg-white p-2 text-left hover:border-primary/50 hover:bg-primary/5 transition dark:border-white/10 dark:bg-white/5 dark:hover:bg-primary/10"
+          >
+            <span className="font-semibold text-slate-800 dark:text-slate-200">ML Engineer</span>
+            <span className="text-[10px] text-slate-400 font-mono">Models & pipelines</span>
+          </button>
+          <button
+            type="button"
+            disabled={submitting}
+            onClick={() => {
+              setForm({ email: 'admin@salessense.com', password: 'Password123!' })
+              setErrors({})
+              setServerError('')
+            }}
+            className="flex flex-col items-start rounded-lg border border-slate-200 bg-white p-2 text-left hover:border-primary/50 hover:bg-primary/5 transition dark:border-white/10 dark:bg-white/5 dark:hover:bg-primary/10"
+          >
+            <span className="font-semibold text-slate-800 dark:text-slate-200">System Admin</span>
+            <span className="text-[10px] text-slate-400 font-mono">Global governance</span>
+          </button>
+        </div>
+      </div>
+
       <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
         Don&apos;t have an account?{' '}
         <Link to="/register" className="font-medium text-primary hover:underline">

@@ -13,6 +13,8 @@ import {
   Store,
   FlaskConical,
   Layers,
+  Lock,
+  LogOut,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
@@ -29,22 +31,8 @@ const allItems = [
 ]
 
 export default function Sidebar() {
-  const { user, login } = useAuth()
+  const { user, logout } = useAuth()
   const currentRole = user?.role || 'retailer'
-
-  const handleSwitchPersona = async (targetRole) => {
-    try {
-      if (targetRole === 'retailer') {
-        await login({ email: 'retailer1@salessense.com', password: 'Password123!' })
-      } else if (targetRole === 'ml_engineer') {
-        await login({ email: 'mle@salessense.com', password: 'Password123!' })
-      } else if (targetRole === 'admin') {
-        await login({ email: 'admin@salessense.com', password: 'Password123!' })
-      }
-    } catch (err) {
-      console.error('Failed to switch persona:', err)
-    }
-  }
 
   // Filter navigation items by active user role
   const visibleItems = allItems.filter(
@@ -57,6 +45,10 @@ export default function Sidebar() {
     admin: Shield,
   }
   const RoleIcon = roleIcons[currentRole] || Store
+
+  const scopeLabel = user?.assigned_stores?.includes('*')
+    ? 'Global (*)'
+    : user?.assigned_stores?.[0] || 'STORE_01'
 
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white px-4 py-6 dark:border-white/10 dark:bg-slate-900 lg:flex">
@@ -86,64 +78,47 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Role Badge and Quick Persona Switcher */}
+      {/* Verified RBAC Identity Card (Locked to Active Session) */}
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-white/10 dark:bg-white/5">
         <div className="flex items-center justify-between">
-          <p className="font-mono uppercase tracking-wider text-[10px] text-slate-400">Active Persona</p>
+          <span className="flex items-center gap-1 font-mono uppercase tracking-wider text-[10px] text-slate-400">
+            <Lock className="h-2.5 w-2.5 text-emerald-500" />
+            Verified Role
+          </span>
+          <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
+            RBAC Locked
+          </span>
+        </div>
+
+        <div className="mt-2.5 flex items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <RoleIcon className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-slate-800 dark:text-slate-200 capitalize truncate text-xs">
+              {currentRole.replace('_', ' ')}
+            </p>
+            <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate">
+              Scope: {scopeLabel}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between border-t border-slate-200/60 pt-2.5 dark:border-white/5">
           <Link
             to="/profile"
-            className="text-[10px] text-primary hover:underline font-medium"
+            className="text-[11px] font-medium text-primary hover:underline"
           >
-            Manage
+            Manage Account
           </Link>
-        </div>
-
-        <div className="mt-2 flex items-center gap-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <RoleIcon className="h-3.5 w-3.5" />
-          </div>
-          <p className="font-semibold text-slate-800 dark:text-slate-200 capitalize truncate">
-            {currentRole.replace('_', ' ')}
-          </p>
-        </div>
-
-        {/* Quick Role Toggle Bar for Easy Evaluation */}
-        <div className="mt-2.5 grid grid-cols-3 gap-1 border-t border-slate-200/60 pt-2 dark:border-white/5">
           <button
             type="button"
-            onClick={() => handleSwitchPersona('retailer')}
-            title="Switch to Store/Inventory Manager role"
-            className={`rounded-lg py-1 text-[10px] font-medium transition ${
-              currentRole === 'retailer'
-                ? 'bg-primary text-white font-semibold'
-                : 'bg-white text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
-            }`}
+            onClick={logout}
+            className="flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 transition"
+            title="Log out of current session"
           >
-            Retailer
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSwitchPersona('ml_engineer')}
-            title="Switch to ML Engineer role"
-            className={`rounded-lg py-1 text-[10px] font-medium transition ${
-              currentRole === 'ml_engineer'
-                ? 'bg-primary text-white font-semibold'
-                : 'bg-white text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
-            }`}
-          >
-            ML Eng
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSwitchPersona('admin')}
-            title="Switch to Admin role"
-            className={`rounded-lg py-1 text-[10px] font-medium transition ${
-              currentRole === 'admin'
-                ? 'bg-primary text-white font-semibold'
-                : 'bg-white text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
-            }`}
-          >
-            Admin
+            <LogOut className="h-3 w-3" />
+            Log out
           </button>
         </div>
       </div>
