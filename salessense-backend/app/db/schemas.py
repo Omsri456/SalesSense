@@ -90,3 +90,71 @@ class DatasetSummary(BaseModel):
     date_range_end: str
     status: str
     columns: List[str]
+    unique_stores: Optional[int] = None
+    unique_products: Optional[int] = None
+    stockout_affected_count: Optional[int] = None
+    censoring_rate_pct: Optional[float] = None
+
+
+class CensoringSummary(BaseModel):
+    total_records: int
+    stockout_affected_records: int
+    censoring_rate_pct: float
+    total_observed_sales: float
+    total_estimated_demand: float
+    total_lost_sales_estimate: float
+    average_recovery_confidence: float
+
+
+
+
+# --- Role-Based Access Control (RBAC) & Scope Schemas ---
+
+class UserResponse(BaseModel):
+    id: str
+    name: str
+    email: str
+    role: str
+    is_active: bool = True
+    assigned_stores: List[str] = Field(default_factory=list)
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class UserCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    email: str = Field(..., min_length=3, max_length=150)
+    password: str = Field(..., min_length=6, max_length=128)
+    role: str = Field(default="retailer")
+    assigned_stores: List[str] = Field(default_factory=lambda: ["STORE_01"])
+
+
+class UserRoleUpdateRequest(BaseModel):
+    role: str = Field(..., description="retailer, ml_engineer, or admin")
+
+
+class UserStoresUpdateRequest(BaseModel):
+    assigned_stores: List[str] = Field(..., description="List of store IDs or ['*'] for global scope")
+
+
+class UserStatusUpdateRequest(BaseModel):
+    is_active: bool
+
+
+class StoreScopeItem(BaseModel):
+    store_id: str
+    city_id: Optional[str] = None
+    region_name: Optional[str] = None
+    store_name: str
+    is_active: bool = True
+
+
+class AuditLogEntry(BaseModel):
+    id: str
+    timestamp: str
+    user_id: str
+    user_email: str
+    action: str
+    resource: str
+    details: Optional[Dict[str, Any]] = None
+

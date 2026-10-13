@@ -8,7 +8,7 @@ from app.db.mongo import get_db
 logger = logging.getLogger("salessense.accuracy")
 
 
-def generate_baseline_accuracy_history(store_id: int, product_id: int) -> List[Dict[str, Any]]:
+def generate_baseline_accuracy_history(store_id: str, product_id: str) -> List[Dict[str, Any]]:
     """
     Generate chronological historical forecast accuracy tracking records (FR-14).
     Simulates rolling weekly evaluation windows across the recent dataset period.
@@ -35,6 +35,8 @@ def generate_baseline_accuracy_history(store_id: int, product_id: int) -> List[D
         "LSTM": [0.82, 0.84, 0.83, 0.87, 0.88, 0.89],
     }
 
+    hash_int = abs(hash(f"{store_id}_{product_id}")) % 100
+
     for i in range(6):
         eval_date = (base_date + timedelta(days=i * 7)).strftime("%Y-%m-%d")
         window_label = f"Week {i + 1} ({eval_date})"
@@ -44,8 +46,7 @@ def generate_baseline_accuracy_history(store_id: int, product_id: int) -> List[D
         lowest_wmape = float("inf")
 
         for m in ["SARIMA", "Prophet", "LSTM"]:
-            # Slight deterministic perturbation by store/product
-            seed_offset = ((store_id * 7 + product_id * 13 + i * 5) % 17) * 0.002
+            seed_offset = ((hash_int + i * 5) % 17) * 0.001
             w = round(wmape_bases[m][i] + seed_offset, 4)
             r = round(rmse_bases[m][i] + seed_offset * 10, 2)
             r_sq = round(r2_bases[m][i] - seed_offset * 2, 4)
@@ -64,8 +65,8 @@ def generate_baseline_accuracy_history(store_id: int, product_id: int) -> List[D
         history.append({
             "window": window_label,
             "evaluation_date": eval_date,
-            "store_id": store_id,
-            "product_id": product_id,
+            "store_id": str(store_id),
+            "product_id": str(product_id),
             "champion_model": best_model,
             "champion_wmape": lowest_wmape,
             "champion_rmse": models_perf[best_model]["rmse"],
@@ -76,7 +77,7 @@ def generate_baseline_accuracy_history(store_id: int, product_id: int) -> List[D
     return history
 
 
-async def get_accuracy_history(store_id: int, product_id: int) -> Dict[str, Any]:
+async def get_accuracy_history(store_id: str, product_id: str) -> Dict[str, Any]:
     """
     Retrieve historical forecast accuracy tracked over time (FR-14).
     """
@@ -86,7 +87,7 @@ async def get_accuracy_history(store_id: int, product_id: int) -> Dict[str, Any]
     if db is not None:
         try:
             cursor = db.accuracy_history.find(
-                {"store_id": store_id, "product_id": product_id}
+                {"store_id": str(store_id), "product_id": str(product_id)}
             ).sort("evaluation_date", 1)
             records = await cursor.to_list(length=100)
             for r in records:
@@ -103,8 +104,8 @@ async def get_accuracy_history(store_id: int, product_id: int) -> Dict[str, Any]
     improvement_pct = round(((earliest_wmape - recent_wmape) / (earliest_wmape or 1)) * 100, 1)
 
     return {
-        "store_id": store_id,
-        "product_id": product_id,
+        "store_id": str(store_id),
+        "product_id": str(product_id),
         "series_id": f"store_{store_id}_prod_{product_id}",
         "total_evaluation_windows": len(records),
         "recent_champion": records[-1]["champion_model"] if records else "N/A",

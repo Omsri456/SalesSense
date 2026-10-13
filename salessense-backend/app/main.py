@@ -7,6 +7,10 @@ from app.api.routes_forecast import router as forecast_router
 from app.api.routes_data import router as data_router
 from app.api.routes_models import router as models_router
 from app.api.routes_auth import router as auth_router
+from app.api.routes_admin import router as admin_router
+from app.api.routes_dw_olap import router as dw_olap_router
+from app.api.routes_mining import router as mining_router
+
 
 
 @asynccontextmanager
@@ -39,6 +43,10 @@ app.include_router(data_router, prefix=settings.API_V1_STR)
 app.include_router(forecast_router, prefix=settings.API_V1_STR)
 app.include_router(models_router, prefix=settings.API_V1_STR)
 app.include_router(auth_router, prefix=settings.API_V1_STR)
+app.include_router(admin_router, prefix=settings.API_V1_STR)
+app.include_router(dw_olap_router, prefix=settings.API_V1_STR)
+app.include_router(mining_router, prefix=settings.API_V1_STR)
+
 
 
 @app.get("/")

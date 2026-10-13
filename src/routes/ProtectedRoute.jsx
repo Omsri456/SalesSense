@@ -1,9 +1,9 @@
 import { Navigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { ShieldAlert, ArrowLeft, RefreshCw } from 'lucide-react'
+import { ShieldAlert, ArrowLeft, Lock } from 'lucide-react'
 
 export default function ProtectedRoute({ children, allowedRoles }) {
-  const { user, isAuthenticated, loading, register } = useAuth()
+  const { user, isAuthenticated, loading } = useAuth()
   const location = useLocation()
 
   if (loading) {
@@ -46,7 +46,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
               <span className="font-semibold text-slate-700 dark:text-slate-200">
                 {allowedRoles.map((r) => roleLabels[r] || r).join(' or ')}
               </span>{' '}
-              permissions. Your current role is{' '}
+              permissions. Your verified account role is{' '}
               <span className="font-semibold text-primary capitalize">
                 {roleLabels[currentRole] || currentRole}
               </span>.
@@ -60,13 +60,10 @@ export default function ProtectedRoute({ children, allowedRoles }) {
                 <ArrowLeft className="h-4 w-4" />
                 Return to Dashboard
               </Link>
-              <Link
-                to="/profile"
-                className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                Change Role in Profile
-              </Link>
+              <div className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:border-white/5 dark:bg-white/5 dark:text-slate-400">
+                <Lock className="h-3.5 w-3.5" />
+                Contact an Administrator to request role or store assignment changes.
+              </div>
             </div>
           </div>
         </div>

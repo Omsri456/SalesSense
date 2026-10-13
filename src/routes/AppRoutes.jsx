@@ -11,6 +11,7 @@ import Models from '../pages/Models'
 import Reports from '../pages/Reports'
 import Profile from '../pages/Profile'
 import Settings from '../pages/Settings'
+import DataWarehouseMining from '../pages/DataWarehouseMining'
 import ProtectedRoute from './ProtectedRoute'
 
 export default function AppRoutes() {
@@ -28,6 +29,14 @@ export default function AppRoutes() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dw-mining"
+        element={
+          <ProtectedRoute>
+            <DataWarehouseMining />
           </ProtectedRoute>
         }
       />

@@ -12,11 +12,13 @@ import {
   Shield,
   Store,
   FlaskConical,
+  Layers,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 const allItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'retailer', 'ml_engineer'] },
+  { to: '/dw-mining', label: 'DWM & OLAP', icon: Layers, roles: ['admin', 'retailer', 'ml_engineer'] },
   { to: '/datasets', label: 'Datasets', icon: Database, roles: ['admin', 'ml_engineer'] },
   { to: '/forecast', label: 'Forecast', icon: LineChart, roles: ['admin', 'retailer', 'ml_engineer'] },
   { to: '/models', label: 'Models', icon: BrainCircuit, roles: ['admin', 'ml_engineer'] },
@@ -27,8 +29,22 @@ const allItems = [
 ]
 
 export default function Sidebar() {
-  const { user, updateUserRole } = useAuth()
+  const { user, login } = useAuth()
   const currentRole = user?.role || 'retailer'
+
+  const handleSwitchPersona = async (targetRole) => {
+    try {
+      if (targetRole === 'retailer') {
+        await login({ email: 'retailer1@salessense.com', password: 'Password123!' })
+      } else if (targetRole === 'ml_engineer') {
+        await login({ email: 'mle@salessense.com', password: 'Password123!' })
+      } else if (targetRole === 'admin') {
+        await login({ email: 'admin@salessense.com', password: 'Password123!' })
+      }
+    } catch (err) {
+      console.error('Failed to switch persona:', err)
+    }
+  }
 
   // Filter navigation items by active user role
   const visibleItems = allItems.filter(
@@ -95,7 +111,7 @@ export default function Sidebar() {
         <div className="mt-2.5 grid grid-cols-3 gap-1 border-t border-slate-200/60 pt-2 dark:border-white/5">
           <button
             type="button"
-            onClick={() => updateUserRole('retailer')}
+            onClick={() => handleSwitchPersona('retailer')}
             title="Switch to Store/Inventory Manager role"
             className={`rounded-lg py-1 text-[10px] font-medium transition ${
               currentRole === 'retailer'
@@ -107,7 +123,7 @@ export default function Sidebar() {
           </button>
           <button
             type="button"
-            onClick={() => updateUserRole('ml_engineer')}
+            onClick={() => handleSwitchPersona('ml_engineer')}
             title="Switch to ML Engineer role"
             className={`rounded-lg py-1 text-[10px] font-medium transition ${
               currentRole === 'ml_engineer'
@@ -119,7 +135,7 @@ export default function Sidebar() {
           </button>
           <button
             type="button"
-            onClick={() => updateUserRole('admin')}
+            onClick={() => handleSwitchPersona('admin')}
             title="Switch to Admin role"
             className={`rounded-lg py-1 text-[10px] font-medium transition ${
               currentRole === 'admin'

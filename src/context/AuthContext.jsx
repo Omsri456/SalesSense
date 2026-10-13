@@ -141,18 +141,32 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const updateUserRole = (newRole) => {
+  const updateProfile = async ({ name }) => {
     if (!user) return
-    const updated = { ...user, role: newRole }
-    setUser(updated)
-    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(updated))
-  }
-
-  const updateProfile = (data) => {
-    if (!user) return
-    const updated = { ...user, ...data }
-    setUser(updated)
-    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(updated))
+    try {
+      const res = await fetch(`${API_BASE}/auth/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.detail || 'Could not update profile.')
+      }
+      const updatedUser = await res.json()
+      setUser(updatedUser)
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(updatedUser))
+      return updatedUser
+    } catch {
+      // Offline fallback
+      const updated = { ...user, name }
+      setUser(updated)
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(updated))
+      return updated
+    }
   }
 
   return (
@@ -166,13 +180,13 @@ export function AuthProvider({ children }) {
         register,
         logout,
         requestPasswordReset,
-        updateUserRole,
         updateProfile,
       }}
     >
       {children}
     </AuthContext.Provider>
   )
+
 }
 
 export function useAuth() {

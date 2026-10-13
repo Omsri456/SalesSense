@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Search, Bell, Moon, Sun, LogOut, User as UserIcon } from 'lucide-react'
+import { Search, Bell, Moon, Sun, LogOut, User as UserIcon, Settings as SettingsIcon } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
 import { upcomingAlerts } from '../data/dashboardData'
@@ -91,7 +91,7 @@ export default function Topbar({ title }) {
                     onClick={() => setDropdownOpen(false)}
                     className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5"
                   >
-                    <Settings className="h-3.5 w-3.5" />
+                    <SettingsIcon className="h-3.5 w-3.5" />
                     Settings
                   </Link>
                 </div>
