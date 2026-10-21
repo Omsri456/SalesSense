@@ -20,7 +20,9 @@ export default function InventoryStatCards({ counts }) {
           </span>
           <div>
             <p className="text-xs font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500">{label}</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">{counts[key]}</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">
+              {counts[key] ?? (key === 'total' ? (counts.all ?? 0) : 0)}
+            </p>
           </div>
         </div>
       ))}

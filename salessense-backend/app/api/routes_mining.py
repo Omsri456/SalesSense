@@ -90,3 +90,14 @@ def get_sales_anomalies(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/comovement")
+def get_demand_comovement(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Computes cross-product synchronous demand co-movement correlation matrix."""
+    try:
+        allowed_stores = _get_user_allowed_stores(current_user)
+        result = mining_engine.demand_comovement_analysis(allowed_stores=allowed_stores)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

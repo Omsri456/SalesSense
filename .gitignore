@@ -53,3 +53,6 @@ venv/
 ENV/
 salessense-backend/.venv/
 salessense-backend/venv/
+*.db
+*.sqlite
+*.sqlite3

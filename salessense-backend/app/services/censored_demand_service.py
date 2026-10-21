@@ -94,53 +94,32 @@ class CensoredDemandService:
         df["bench_std"] = df["bench_std"].fillna(1.0)
         df["bench_count"] = df["bench_count"].fillna(1)
 
-        # Apply demand recovery formula
-        est_demands = []
-        lost_sales = []
-        confidences = []
-        notes = []
+        # Apply demand recovery formula (vectorized for instant execution)
+        in_stock_hours = np.clip(df["stock_hour6_22_cnt"].fillna(16).astype(int).values, 1, 16)
+        lost_hours = 16 - in_stock_hours
+        censored = df["is_censored"].fillna(False).values & (lost_hours > 0)
+        obs = df["observed_sales"].fillna(0.0).astype(float).values
+        bench_mean = np.maximum(0.1, df["bench_mean"].fillna(df["observed_sales"]).astype(float).values)
+        bench_count = df["bench_count"].fillna(1).astype(int).values
 
-        for _, row in df.iterrows():
-            obs = row["observed_sales"]
-            censored = row["is_censored"]
-            in_stock_hours = max(1, int(row.get("stock_hour6_22_cnt", 16)))
-            lost_hours = 16 - in_stock_hours
-            bench_mean = max(0.1, float(row.get("bench_mean", obs)))
-            bench_count = int(row.get("bench_count", 1))
+        active_velocity = obs / in_stock_hours.astype(float)
+        bench_hourly_velocity = bench_mean / 16.0
+        blended_velocity = 0.5 * active_velocity + 0.5 * bench_hourly_velocity
+        additional_lost = np.where(censored, np.round(blended_velocity * lost_hours, 2), 0.0)
+        reconstructed = np.where(censored, np.round(obs + additional_lost, 2), obs)
 
-            if not censored or lost_hours <= 0:
-                # Fully observed; no censoring
-                est_demands.append(obs)
-                lost_sales.append(0.0)
-                confidences.append(1.0)
-                notes.append("In-stock all operational hours; observed sales equals latent demand.")
-            else:
-                # Stockout occurred: customer demand is censored
-                active_velocity = obs / float(in_stock_hours)
-                bench_hourly_velocity = bench_mean / 16.0
+        sample_penalty = np.minimum(1.0, bench_count / 5.0)
+        duration_penalty = np.maximum(0.2, (16 - lost_hours) / 16.0)
+        conf = np.where(censored, np.round(sample_penalty * duration_penalty, 2), 1.0)
 
-                # Weighted blend between active-hours velocity and comparable unconstrained velocity
-                blended_velocity = 0.5 * active_velocity + 0.5 * bench_hourly_velocity
-                additional_lost = blended_velocity * float(lost_hours)
-                reconstructed = obs + additional_lost
-
-                # Confidence penalizes small comparable sample sizes or extreme lost hours
-                sample_penalty = min(1.0, bench_count / 5.0)
-                duration_penalty = max(0.2, (16 - lost_hours) / 16.0)
-                conf = round(sample_penalty * duration_penalty, 2)
-
-                est_demands.append(round(reconstructed, 2))
-                lost_sales.append(round(additional_lost, 2))
-                confidences.append(conf)
-                notes.append(
-                    f"Censored observation ({lost_hours}h stockout). "
-                    f"Reconstructed via in-stock rate ({active_velocity:.2f}/h) and comparable baseline ({bench_hourly_velocity:.2f}/h)."
-                )
-
-        df["estimated_latent_demand"] = est_demands
-        df["lost_sales_estimate"] = lost_sales
-        df["recovery_confidence"] = confidences
-        df["censoring_notes"] = notes
+        df["estimated_latent_demand"] = reconstructed
+        df["lost_sales_estimate"] = additional_lost
+        df["recovery_confidence"] = conf
+        df["censoring_notes"] = np.where(
+            censored,
+            "Censored observation reconstructed via in-stock rate and comparable baseline.",
+            "In-stock all operational hours; observed sales equals latent demand."
+        )
 
         # Cleanup merge columns
         drop_cols = [c for c in ["bench_mean", "bench_std", "bench_count"] if c in df.columns]

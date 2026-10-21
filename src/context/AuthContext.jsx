@@ -39,6 +39,43 @@ export function AuthProvider({ children }) {
     }
   }, [token])
 
+  // Listen for unauthorized 401 events from apiFetch
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setUser(null)
+      setToken(null)
+      localStorage.removeItem(STORAGE_KEY_USER)
+      localStorage.removeItem(STORAGE_KEY_TOKEN)
+    }
+    window.addEventListener('salessense:unauthorized', handleUnauthorized)
+    return () => window.removeEventListener('salessense:unauthorized', handleUnauthorized)
+  }, [])
+
+  // Proactively validate session token with backend on mount
+  useEffect(() => {
+    const validateSession = async () => {
+      const savedToken = localStorage.getItem(STORAGE_KEY_TOKEN)
+      if (!savedToken || savedToken === 'local-dev-mock-token') return
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${savedToken}` },
+        })
+        if (!res.ok && res.status === 401) {
+          setUser(null)
+          setToken(null)
+          localStorage.removeItem(STORAGE_KEY_USER)
+          localStorage.removeItem(STORAGE_KEY_TOKEN)
+        } else if (res.ok) {
+          const freshUser = await res.json()
+          setUser(freshUser)
+        }
+      } catch {
+        // Backend offline or rebooting - keep current local state
+      }
+    }
+    validateSession()
+  }, [])
+
   const register = async ({ name, email, password, role = 'retailer' }) => {
     setLoading(true)
     try {

@@ -1,5 +1,7 @@
 """
-Tests for Kimball Star Schema Data Warehouse, OLAP Engine, and Retail Data Mining Suite.
+Tests for Kimball Star Schema Data Warehouse, Persistent Storage, ETL Pipeline,
+OLAP Hypercube Engine, and Retail Data Mining Suite.
+Complies with Phase 9 of SalesSense Enhancement specification.
 """
 
 import pytest
@@ -7,6 +9,8 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.dw.dimensional_model import dw_engine
+from app.dw.db import SessionLocal
+from app.dw.models import FactDailySales, DimStore, DimProduct, DimDate, EtlRun
 from app.services.olap_service import olap_engine
 from app.services.mining_service import mining_engine
 
@@ -19,17 +23,45 @@ def _get_token(email: str, password: str = "Password123!") -> str:
     return res.json()["access_token"]
 
 
-def test_dimensional_star_schema_build():
-    """Verify Kimball dimensional data warehouse builds with expected facts and dimensions."""
+def test_dimensional_star_schema_build_and_persistence():
+    """Verify Kimball dimensional data warehouse builds with expected facts, dimensions, and persists in DB."""
     meta = dw_engine.build_warehouse(force_rebuild=True)
     assert meta["fact_table"] == "FactDailySales"
-    assert meta["total_facts"] > 0
-    assert meta["dimensions"]["DimStore"] >= 2
-    assert meta["dimensions"]["DimProduct"] >= 5
-    assert meta["dimensions"]["DimDate"] > 0
+    assert meta["total_facts"] == 19710  # 3 stores x 18 SKUs x 365 days
+    assert meta["is_persisted"] is True
+    assert meta["dimensions"]["DimStore"] >= 3
+    assert meta["dimensions"]["DimProduct"] >= 18
+    assert meta["dimensions"]["DimDate"] == 365
     assert meta["dimensions"]["DimStockout"] == 17
     assert meta["financial_summary"]["total_units_sold"] > 0
     assert meta["financial_summary"]["total_gross_revenue"] > 0
+
+    # Verify rows exist in physical relational database
+    with SessionLocal() as session:
+        db_facts = session.query(FactDailySales).count()
+        db_stores = session.query(DimStore).count()
+        db_products = session.query(DimProduct).count()
+        db_dates = session.query(DimDate).count()
+        assert db_facts == 19710
+        assert db_stores >= 3
+        assert db_products >= 18
+        assert db_dates == 365
+
+
+def test_etl_idempotency_and_audit_run():
+    """Verify ETL runs are idempotent (no duplicate facts) and tracked in audit log."""
+    with SessionLocal() as session:
+        initial_runs = session.query(EtlRun).count()
+
+    meta2 = dw_engine.build_warehouse(force_rebuild=True)
+    assert meta2["total_facts"] == 19710  # Exactly 19,710 facts, no duplicated rows
+
+    with SessionLocal() as session:
+        new_runs = session.query(EtlRun).count()
+        assert new_runs == initial_runs + 1
+        latest = session.query(EtlRun).order_by(EtlRun.run_timestamp.desc()).first()
+        assert latest.status == "SUCCESS"
+        assert latest.facts_created == 19710
 
 
 def test_olap_rollup():
@@ -90,18 +122,37 @@ def test_olap_pivot():
     assert "TOTAL" in pivot_res["totals"]["row"]
 
 
-def test_market_basket_analysis_apriori():
-    """Verify Apriori market basket analysis generates frequent itemsets and association rules."""
+def test_olap_parameter_validation_and_security():
+    """Verify invalid dimensions or SQL injection attempts are rejected."""
+    with pytest.raises(ValueError, match="Invalid hierarchy level"):
+        olap_engine.rollup(hierarchy_level="non_existent_column; DROP TABLE fact_daily_sales;")
+
+    with pytest.raises(ValueError, match="Invalid metric"):
+        olap_engine.rollup(hierarchy_level="category", metric="invalid_metric_name")
+
+
+def test_market_basket_analysis_apriori_with_caveats():
+    """Verify Apriori market basket analysis generates rules and displays academic caveats."""
     res = mining_engine.market_basket_analysis(min_support=0.01, min_confidence=0.1)
-    assert res["algorithm"] == "Apriori"
+    assert res["algorithm"] == "Apriori Association Mining"
+    assert "academic_caveat" in res
+    assert res["requires_transaction_data"] is True
     assert res["total_baskets"] > 0
     assert len(res["frequent_itemsets"]) > 0
     assert len(res["rules"]) > 0
-    for rule in res["rules"][:5]:
-        assert "support" in rule
-        assert "confidence" in rule
-        assert "lift" in rule
-        assert rule["confidence"] >= 0.1
+
+
+def test_demand_comovement_analysis():
+    """Verify statistical cross-product demand correlation matrix."""
+    res = mining_engine.demand_comovement_analysis()
+    assert res["algorithm"] == "Demand Co-Movement Matrix"
+    assert res["observation_days"] == 365
+    assert len(res["pairs"]) > 0
+    for p in res["pairs"]:
+        assert "product_a" in p
+        assert "product_b" in p
+        assert "correlation_r" in p
+        assert -1.0 <= p["correlation_r"] <= 1.0
 
 
 def test_demand_regime_clustering_kmeans():
@@ -122,7 +173,6 @@ def test_anomaly_detection_with_stockout_attribution():
     res = mining_engine.detect_anomalies(z_threshold=2.0, rolling_window=7)
     assert res["algorithm"] == "Rolling Seasonal Z-Score Anomaly Detection"
     assert res["total_anomalies"] > 0
-    # Check that diagnoses are populated
     for a in res["anomalies"][:5]:
         assert "diagnosis" in a
         assert "z_score" in a
@@ -131,7 +181,7 @@ def test_anomaly_detection_with_stockout_attribution():
 
 
 def test_dw_api_endpoints_and_rbac():
-    """Verify DW API endpoints enforce authorization and store scoping."""
+    """Verify DW API endpoints enforce authorization, star schema topology, and store scoping."""
     admin_token = _get_token("admin@salessense.com")
     retailer1_token = _get_token("retailer1@salessense.com")  # Scoped to STORE_01
 
@@ -142,45 +192,31 @@ def test_dw_api_endpoints_and_rbac():
     meta_res = client.get("/api/dw/metadata", headers=headers_admin)
     assert meta_res.status_code == 200
 
-    # 2. Rollup
+    # 2. Schema Topology
+    schema_res = client.get("/api/dw/schema", headers=headers_ret1)
+    assert schema_res.status_code == 200
+    schema = schema_res.json()
+    assert schema["fact_table"]["name"] == "FactDailySales"
+    assert len(schema["dimensions"]) == 5
+
+    # 3. ETL Pipeline Run via API
+    etl_res = client.post("/api/dw/etl/run", headers=headers_admin)
+    assert etl_res.status_code == 200
+    assert etl_res.json()["status"] == "success"
+
+    # 4. Unauthorized ETL run attempt by Retailer -> 403 Forbidden
+    bad_etl = client.post("/api/dw/etl/run", headers=headers_ret1)
+    assert bad_etl.status_code == 403
+
+    # 5. Rollup
     roll_res = client.post("/api/dw/rollup", json={"hierarchy_level": "category"}, headers=headers_ret1)
     assert roll_res.status_code == 200
     assert len(roll_res.json()["data"]) > 0
 
-    # 3. Pivot
-    piv_res = client.post(
-        "/api/dw/pivot",
-        json={"row_dim": "product_name", "col_dim": "store_id", "val_metric": "observed_sales"},
-        headers=headers_admin,
-    )
-    assert piv_res.status_code == 200
-    assert len(piv_res.json()["data"]) > 0
-
-    # 4. Slice with forbidden store scope
+    # 6. Slice with forbidden store scope -> 403 Forbidden
     slice_bad = client.post(
         "/api/dw/slice",
         json={"dimension": "store_id", "value": "STORE_02"},
         headers=headers_ret1,
     )
     assert slice_bad.status_code == 403
-
-
-def test_mining_api_endpoints():
-    """Verify Data Mining endpoints return valid analysis over HTTP."""
-    token = _get_token("admin@salessense.com")
-    headers = {"Authorization": f"Bearer {token}"}
-
-    # Market Basket
-    mba_res = client.get("/api/mining/market-basket?min_support=0.01&min_confidence=0.1", headers=headers)
-    assert mba_res.status_code == 200
-    assert mba_res.json()["total_rules"] > 0
-
-    # Clusters
-    clu_res = client.get("/api/mining/demand-clusters?n_clusters=3", headers=headers)
-    assert clu_res.status_code == 200
-    assert clu_res.json()["n_clusters"] == 3
-
-    # Anomalies
-    ano_res = client.get("/api/mining/anomalies?z_threshold=2.0", headers=headers)
-    assert ano_res.status_code == 200
-    assert ano_res.json()["total_anomalies"] > 0

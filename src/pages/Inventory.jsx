@@ -27,7 +27,7 @@ export default function Inventory() {
   )
 
   const counts = useMemo(() => {
-    const c = { all: computed.length, critical: 0, low: 0, healthy: 0 }
+    const c = { total: computed.length, all: computed.length, critical: 0, low: 0, healthy: 0 }
     computed.forEach((item) => c[item.status]++)
     return c
   }, [computed])

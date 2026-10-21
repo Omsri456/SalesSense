@@ -1,21 +1,21 @@
 """
 Data Warehouse & OLAP API Routes
-Provides endpoints for multidimensional analysis:
+Provides endpoints for multidimensional analysis, star schema inspection, and ETL pipeline runs:
 - Metadata & Star Schema overview
+- Schema Topology for Visual Star Diagram
+- ETL Run execution & audit run history
 - Rollup
 - Drill-Down
 - Slice
 - Dice
 - Pivot
-- Rebuild Warehouse
 """
 
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from app.api.deps import get_current_user, require_role
-from app.db.schemas import UserResponse
 from app.dw.dimensional_model import dw_engine
 from app.services.olap_service import olap_engine
 
@@ -74,11 +74,110 @@ def get_warehouse_metadata(current_user: Dict[str, Any] = Depends(get_current_us
     return dw_engine.get_warehouse_metadata()
 
 
+@router.get("/schema")
+def get_star_schema_topology(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """
+    Returns explicit Kimball Star Schema topology:
+    Fact table with grain, additive measures, and surrounding dimension tables with hierarchies.
+    Powers the Star Schema Visualizer on the frontend.
+    """
+    meta = dw_engine.get_warehouse_metadata()
+    return {
+        "fact_table": {
+            "name": "FactDailySales",
+            "grain": "Store x Product x Day",
+            "primary_key": "fact_id",
+            "total_rows": meta.get("total_facts", 0),
+            "measures": [
+                {"name": "observed_sales", "type": "FLOAT", "description": "Actual observed unit volume"},
+                {"name": "gross_revenue", "type": "FLOAT", "description": "Net monetary sales after discounts"},
+                {"name": "estimated_latent_demand", "type": "FLOAT", "description": "Model-recovered unconstrained demand"},
+                {"name": "lost_sales_estimate", "type": "FLOAT", "description": "Estimated unfulfilled demand units"},
+                {"name": "lost_revenue_estimate", "type": "FLOAT", "description": "Revenue lost due to stockouts"},
+            ],
+            "foreign_keys": [
+                {"column": "store_key", "references": "DimStore.store_key"},
+                {"column": "product_key", "references": "DimProduct.product_key"},
+                {"column": "date_key", "references": "DimDate.date_key"},
+                {"column": "stockout_key", "references": "DimStockout.stockout_key"},
+                {"column": "promotion_key", "references": "DimPromotion.promotion_key"},
+            ]
+        },
+        "dimensions": [
+            {
+                "name": "DimStore",
+                "table": "dim_store",
+                "key": "store_key",
+                "natural_key": "store_id",
+                "attributes": ["store_name", "city_id", "region_name", "store_tier"],
+                "cardinality": meta.get("dimensions", {}).get("DimStore", 0),
+            },
+            {
+                "name": "DimProduct",
+                "table": "dim_product",
+                "key": "product_key",
+                "natural_key": "product_id",
+                "attributes": ["product_name", "category", "management_group_id", "first_category_id", "second_category_id", "third_category_id", "unit_price"],
+                "cardinality": meta.get("dimensions", {}).get("DimProduct", 0),
+            },
+            {
+                "name": "DimDate",
+                "table": "dim_date",
+                "key": "date_key",
+                "natural_key": "full_date",
+                "attributes": ["day_name", "day_of_week", "day_of_month", "month", "month_name", "quarter", "year", "is_weekend", "holiday_flag"],
+                "cardinality": meta.get("dimensions", {}).get("DimDate", 0),
+            },
+            {
+                "name": "DimStockout",
+                "table": "dim_stockout",
+                "key": "stockout_key",
+                "natural_key": "stock_hour6_22_cnt",
+                "attributes": ["in_stock_hours", "stockout_hours", "is_censored", "severity_label"],
+                "cardinality": meta.get("dimensions", {}).get("DimStockout", 0),
+            },
+            {
+                "name": "DimPromotion",
+                "table": "dim_promotion",
+                "key": "promotion_key",
+                "natural_key": "promotion_code",
+                "attributes": ["promotion_name", "discount_rate", "activity_flag", "is_holiday"],
+                "cardinality": meta.get("dimensions", {}).get("DimPromotion", 3),
+            },
+        ],
+    }
+
+
 @router.post("/rebuild")
 def rebuild_warehouse(current_user: Dict[str, Any] = Depends(require_role(["admin", "ml_engineer"]))):
     """Rebuilds the dimensional data warehouse from staging data."""
     meta = dw_engine.build_warehouse(force_rebuild=True)
     return {"message": "Warehouse successfully rebuilt", "metadata": meta}
+
+
+@router.post("/etl/run")
+def execute_etl_pipeline(current_user: Dict[str, Any] = Depends(require_role(["admin", "ml_engineer"]))):
+    """
+    Executes complete Extract-Transform-Load (ETL) pipeline with stage reconciliation.
+    Records audit log in persistent EtlRun table.
+    """
+    meta = dw_engine.build_warehouse(force_rebuild=True)
+    latest_run = dw_engine.get_latest_etl_run()
+    return {
+        "status": "success",
+        "message": "ETL pipeline completed successfully and persisted to database.",
+        "etl_run": latest_run,
+        "metadata": meta,
+    }
+
+
+@router.get("/etl/runs")
+def list_etl_runs(
+    limit: int = Query(10, ge=1, le=50),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Retrieves history of ETL pipeline executions from persistent database."""
+    return dw_engine.get_etl_runs(limit=limit)
 
 
 @router.post("/rollup")
@@ -96,8 +195,10 @@ def execute_rollup(
             filters=req.filters,
         )
         return {"hierarchy_level": req.hierarchy_level, "metric": req.metric, "data": results}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Rollup execution failed: {str(e)}")
 
 
 @router.post("/drilldown")
@@ -121,8 +222,10 @@ def execute_drilldown(
             "child_dimension": req.child_dimension,
             "data": results,
         }
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Drilldown execution failed: {str(e)}")
 
 
 @router.post("/slice")
@@ -133,7 +236,6 @@ def execute_slice(
     """Slice warehouse cube along a single dimension."""
     try:
         allowed_stores = _get_user_allowed_stores(current_user)
-        # If user is scoped to specific stores and slices by store_id, verify access
         if req.dimension == "store_id" and allowed_stores and req.value not in allowed_stores:
             raise HTTPException(status_code=403, detail="Forbidden: You do not have access to this store.")
 
@@ -146,8 +248,10 @@ def execute_slice(
         return result
     except HTTPException:
         raise
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Slice execution failed: {str(e)}")
 
 
 @router.post("/dice")
@@ -158,7 +262,6 @@ def execute_dice(
     """Dice the warehouse cube across multi-dimensional criteria."""
     try:
         allowed_stores = _get_user_allowed_stores(current_user)
-        # Reconcile requested stores with allowed stores
         scoped_stores = req.store_ids
         if allowed_stores:
             if scoped_stores:
@@ -175,8 +278,10 @@ def execute_dice(
             allowed_stores=allowed_stores,
         )
         return result
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Dice execution failed: {str(e)}")
 
 
 @router.post("/pivot")
@@ -195,5 +300,7 @@ def execute_pivot(
             allowed_stores=allowed_stores,
         )
         return result
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Pivot execution failed: {str(e)}")

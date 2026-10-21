@@ -1,0 +1,19 @@
+{
+  "source_name": "freshretailnet_subset.csv",
+  "dataset_mode": "synthetic_benchmark",
+  "provenance_notes": "Synthetic FreshRetailNet-50K compliant benchmark series generated with seed 42 across 2 stores, 6 SKUs, 365 days (275940 rows) for stockout-censored demand testing.",
+  "ingested_at": "2026-10-21T00:05:30.576577+00:00",
+  "raw_rows": 275940,
+  "valid_rows": 275940,
+  "rejected_rows": 0,
+  "duplicates_removed": 0,
+  "unique_stores": 3,
+  "unique_products": 18,
+  "store_ids": [
+    "STORE_01",
+    "STORE_02",
+    "STORE_03"
+  ],
+  "date_range_start": "2025-01-01",
+  "date_range_end": "2025-12-31"
+}

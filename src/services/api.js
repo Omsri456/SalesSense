@@ -4,8 +4,9 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
  * Robust fetch wrapper with automatic JWT Bearer authentication, timeout, and error handling.
  */
 async function apiFetch(endpoint, options = {}) {
+  const timeoutMs = options.timeout ?? 60000;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   const token = localStorage.getItem('salessense_token');
   const headers = {
@@ -25,6 +26,11 @@ async function apiFetch(endpoint, options = {}) {
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
       const message = errData.detail || `API error ${response.status}: ${response.statusText}`;
+      if (response.status === 401) {
+        localStorage.removeItem('salessense_token');
+        localStorage.removeItem('salessense_user');
+        window.dispatchEvent(new CustomEvent('salessense:unauthorized', { detail: { message } }));
+      }
       const err = new Error(message);
       err.status = response.status;
       throw err;
@@ -32,6 +38,11 @@ async function apiFetch(endpoint, options = {}) {
     return await response.json();
   } catch (err) {
     clearTimeout(timeoutId);
+    if (err.name === 'AbortError' || err.message?.includes('abort')) {
+      const timeoutErr = new Error('Request timed out while computing analytics. Please try again.');
+      timeoutErr.status = 408;
+      throw timeoutErr;
+    }
     throw err;
   }
 }
@@ -132,8 +143,20 @@ export const api = {
     return apiFetch('/dw/metadata');
   },
 
+  async getStarSchema() {
+    return apiFetch('/dw/schema');
+  },
+
   async rebuildWarehouse() {
     return apiFetch('/dw/rebuild', { method: 'POST' });
+  },
+
+  async runETLPipeline() {
+    return apiFetch('/dw/etl/run', { method: 'POST' });
+  },
+
+  async getETLRuns(limit = 10) {
+    return apiFetch(`/dw/etl/runs?limit=${limit}`);
   },
 
   async olapRollup(hierarchyLevel, metric = 'observed_sales', filters = null) {
@@ -178,6 +201,10 @@ export const api = {
 
   async getDemandClusters(nClusters = 4) {
     return apiFetch(`/mining/demand-clusters?n_clusters=${nClusters}`);
+  },
+
+  async getDemandCoMovement() {
+    return apiFetch('/mining/comovement');
   },
 
   async getAnomalies(storeId = '', productId = '', zThreshold = 2.5, rollingWindow = 7) {

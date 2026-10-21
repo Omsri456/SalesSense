@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     MONGO_URI: str = "mongodb://localhost:27017"
     MONGO_DB_NAME: str = "salessense"
 
+    # Data Warehouse Relational Persistence (Kimball Star Schema)
+    DW_DATABASE_URL: str = "sqlite:///./data_cache/salessense_dw.db"
+
     # Hugging Face
     HF_TOKEN: str = ""
 
