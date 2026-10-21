@@ -108,7 +108,7 @@ export default function DataWarehouseMining() {
 
   // Mining parameters
   const [nClusters, setNClusters] = useState(4)
-  const [zThreshold, setZThreshold] = useState(2.2)
+  const [zThreshold, setZThreshold] = useState(1.8)
   const [rollingWindow, setRollingWindow] = useState(7)
   const [minSupport, setMinSupport] = useState(0.05)
   const [minConfidence, setMinConfidence] = useState(0.2)
@@ -1264,7 +1264,7 @@ export default function DataWarehouseMining() {
                     <input
                       type="number"
                       step={0.1}
-                      min={1.5}
+                      min={1.0}
                       max={4.0}
                       value={zThreshold}
                       onChange={(e) => setZThreshold(Number(e.target.value))}
@@ -1605,13 +1605,20 @@ export default function DataWarehouseMining() {
                 </div>
               ) : anomalyResult ? (
                 <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-white/5 space-y-4">
-                  <div>
-                    <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
-                      Rolling Seasonal Anomaly Detection with Stockout Attribution
-                    </h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      Flags statistical demand surges and collapses (threshold z &gt; {zThreshold}), cross-referencing inventory censoring status.
-                    </p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+                        Rolling Seasonal Anomaly Detection with Stockout Attribution
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Flags statistical demand surges and collapses (threshold z &gt; {zThreshold}), cross-referencing inventory censoring status.
+                      </p>
+                    </div>
+                    {anomalyResult.total_anomalies !== undefined && (
+                      <span className="rounded-full bg-slate-100 dark:bg-white/10 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        {anomalyResult.total_anomalies} Anomalies Detected
+                      </span>
+                    )}
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
@@ -1628,30 +1635,41 @@ export default function DataWarehouseMining() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                        {anomalyResult.anomalies?.slice(0, 30).map((a, idx) => (
-                          <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition">
-                            <td className="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-400">{a.date}</td>
-                            <td className="py-2.5 px-3 font-mono">{a.store_id}</td>
-                            <td className="py-2.5 px-3 font-medium text-slate-800 dark:text-slate-200">{a.product_name}</td>
-                            <td className="py-2.5 px-3">
-                              <span
-                                className={`rounded px-2 py-0.5 text-[10px] font-bold ${
-                                  a.anomaly_type === 'Demand Spike'
-                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                                    : a.anomaly_type === 'Stockout-Induced Collapse'
-                                    ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
-                                    : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                                }`}
-                              >
-                                {a.anomaly_type}
+                        {anomalyResult.anomalies && anomalyResult.anomalies.length > 0 ? (
+                          anomalyResult.anomalies.slice(0, 30).map((a, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition">
+                              <td className="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-400">{a.date}</td>
+                              <td className="py-2.5 px-3 font-mono">{a.store_id}</td>
+                              <td className="py-2.5 px-3 font-medium text-slate-800 dark:text-slate-200">{a.product_name}</td>
+                              <td className="py-2.5 px-3">
+                                <span
+                                  className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                                    a.anomaly_type === 'Demand Spike'
+                                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                      : a.anomaly_type === 'Stockout-Induced Collapse'
+                                      ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                                      : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                                  }`}
+                                >
+                                  {a.anomaly_type}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 font-mono font-bold">{a.observed_sales}</td>
+                              <td className="py-2.5 px-3 font-mono text-slate-500">{a.expected_sales}</td>
+                              <td className="py-2.5 px-3 font-mono">{a.z_score}</td>
+                              <td className="py-2.5 px-3 text-[11px] text-slate-600 dark:text-slate-400">{a.diagnosis}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={8} className="py-8 text-center text-slate-500 dark:text-slate-400">
+                              No statistical anomalies detected at z &gt; {zThreshold}.
+                              <span className="block text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                                Adjust the Z-Threshold slider in "Advanced Hyperparameters" to 1.8 or lower to view lower-amplitude anomalies.
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 font-mono font-bold">{a.observed_sales}</td>
-                            <td className="py-2.5 px-3 font-mono text-slate-500">{a.expected_sales}</td>
-                            <td className="py-2.5 px-3 font-mono">{a.z_score}</td>
-                            <td className="py-2.5 px-3 text-[11px] text-slate-600 dark:text-slate-400">{a.diagnosis}</td>
                           </tr>
-                        ))}
+                        )}
                       </tbody>
                     </table>
                   </div>

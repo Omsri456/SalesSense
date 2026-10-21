@@ -207,7 +207,7 @@ export const api = {
     return apiFetch('/mining/comovement');
   },
 
-  async getAnomalies(storeId = '', productId = '', zThreshold = 2.5, rollingWindow = 7) {
+  async getAnomalies(storeId = '', productId = '', zThreshold = 1.8, rollingWindow = 7) {
     let url = `/mining/anomalies?z_threshold=${zThreshold}&rolling_window=${rollingWindow}`;
     if (storeId) url += `&store_id=${storeId}`;
     if (productId) url += `&product_id=${productId}`;

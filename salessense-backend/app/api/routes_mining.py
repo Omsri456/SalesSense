@@ -68,7 +68,7 @@ def get_demand_regime_clusters(
 def get_sales_anomalies(
     store_id: Optional[str] = Query(None, description="Optional store filter"),
     product_id: Optional[str] = Query(None, description="Optional product filter"),
-    z_threshold: float = Query(2.5, ge=1.5, le=5.0, description="Z-score anomaly threshold"),
+    z_threshold: float = Query(1.8, ge=1.0, le=5.0, description="Z-score anomaly threshold"),
     rolling_window: int = Query(7, ge=3, le=30, description="Rolling baseline window in days"),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):

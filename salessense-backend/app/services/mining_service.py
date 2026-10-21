@@ -401,7 +401,7 @@ class RetailDataMiningEngine:
         self,
         store_id: Optional[str] = None,
         product_id: Optional[str] = None,
-        z_threshold: float = 2.5,
+        z_threshold: float = 1.8,
         rolling_window: int = 7,
         allowed_stores: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
