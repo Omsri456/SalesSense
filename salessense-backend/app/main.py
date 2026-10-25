@@ -10,6 +10,7 @@ from app.api.routes_auth import router as auth_router
 from app.api.routes_admin import router as admin_router
 from app.api.routes_dw_olap import router as dw_olap_router
 from app.api.routes_mining import router as mining_router
+from app.api.routes_inventory import router as inventory_router
 
 
 
@@ -46,6 +47,7 @@ app.include_router(auth_router, prefix=settings.API_V1_STR)
 app.include_router(admin_router, prefix=settings.API_V1_STR)
 app.include_router(dw_olap_router, prefix=settings.API_V1_STR)
 app.include_router(mining_router, prefix=settings.API_V1_STR)
+app.include_router(inventory_router, prefix=settings.API_V1_STR)
 
 
 

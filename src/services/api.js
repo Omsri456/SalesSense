@@ -43,11 +43,24 @@ async function apiFetch(endpoint, options = {}) {
       timeoutErr.status = 408;
       throw timeoutErr;
     }
+    if (err instanceof TypeError && (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError'))) {
+      const netErr = new Error('Backend server is unreachable. Please verify backend connection.');
+      netErr.status = 503;
+      netErr.isNetworkError = true;
+      window.dispatchEvent(new CustomEvent('salessense:network-error', { detail: { message: netErr.message } }));
+      throw netErr;
+    }
     throw err;
   }
 }
 
 export const api = {
+  /**
+   * Inventory intelligence & perishable replenishment recommendations
+   */
+  async getInventoryRecommendations(storeId = 'STORE_01', safetyDays = 3) {
+    return apiFetch(`/inventory/recommendations?store_id=${encodeURIComponent(storeId)}&safety_days=${safetyDays}`);
+  },
   /**
    * Dataset summary
    */
