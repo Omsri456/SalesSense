@@ -11,8 +11,6 @@ import ProductSnapshotCard from '../components/ProductSnapshotCard'
 import { api } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import { useProducts } from '../hooks/useProducts'
-import { generateSalesTrend } from '../data/salesTrendData'
-import { generateForecast } from '../data/forecastData'
 import {
   Store,
   FlaskConical,
@@ -21,106 +19,102 @@ import {
   PackageSearch,
   BrainCircuit,
   Database,
+  RefreshCw,
+  AlertCircle,
+  FolderSync,
 } from 'lucide-react'
 
 export default function Dashboard() {
   const [sku, setSku] = useState('all')
   const { user } = useAuth()
   const role = user?.role || 'retailer'
-  const assignedStore = user?.assigned_stores?.[0] || 'STORE_01'
+
+  const [stores, setStores] = useState([])
+  const [selectedStore, setSelectedStore] = useState(() => {
+    const assigned = user?.assigned_stores
+    return assigned && assigned[0] && assigned[0] !== '*' ? assigned[0] : 'STORE_01'
+  })
 
   const { products } = useProducts()
-  const [dwMeta, setDwMeta] = useState(null)
+  const [insights, setInsights] = useState(null)
   const [forecastData, setForecastData] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [isLive, setIsLive] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  // Fetch warehouse metadata & forecast
+  // Load authorized stores
+  useEffect(() => {
+    let active = true
+    async function fetchStores() {
+      try {
+        const storeList = await api.getMyStores()
+        if (active && Array.isArray(storeList) && storeList.length > 0) {
+          setStores(storeList)
+        }
+      } catch (err) {
+        if (active) {
+          setStores([
+            { store_id: 'STORE_01', store_name: 'FreshDirect - Flagship' },
+            { store_id: 'STORE_02', store_name: 'FreshDirect - Midtown' },
+            { store_id: 'STORE_03', store_name: 'FreshDirect - Suburbs' },
+          ])
+        }
+      }
+    }
+    fetchStores()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  // Load verified insights and forecast from backend
   useEffect(() => {
     let active = true
 
     async function loadDashboardData() {
       try {
         setLoading(true)
-        const [metaRes, fcRes] = await Promise.allSettled([
-          api.getDWMetadata(),
-          api.getForecast(assignedStore, sku, 90),
+        setError(null)
+        const [insightsRes, fcRes] = await Promise.allSettled([
+          api.getDashboardInsights(selectedStore, sku),
+          api.getForecast(selectedStore, sku, 90),
         ])
 
         if (!active) return
 
-        if (metaRes.status === 'fulfilled') {
-          setDwMeta(metaRes.value)
+        if (insightsRes.status === 'fulfilled') {
+          setInsights(insightsRes.value)
+        } else {
+          setError(insightsRes.reason?.message || 'Could not fetch dashboard insights.')
         }
+
         if (fcRes.status === 'fulfilled') {
           setForecastData(fcRes.value)
-          setIsLive(true)
         }
       } catch (err) {
-        console.error('Dashboard data load error:', err)
+        if (active) setError(err.message || 'Error communicating with backend.')
       } finally {
         if (active) setLoading(false)
       }
     }
 
-    loadDashboardData()
+    if (selectedStore) {
+      loadDashboardData()
+    }
     return () => {
       active = false
     }
-  }, [sku, assignedStore])
+  }, [selectedStore, sku])
 
-  // Fallbacks if backend is booting
-  const fallbackSalesTrend = useMemo(() => generateSalesTrend(sku), [sku])
-  const fallbackForecast = useMemo(
-    () => generateForecast({ sku, modelId: 'lstm', horizonDays: 90 }),
-    [sku]
-  )
-
-  const activeForecast = forecastData || fallbackForecast
   const productLabel = products.find((p) => p.value === sku)?.label ?? 'All Products'
 
-  // Dynamic KPI Cards computed from live warehouse & forecast
-  const dynamicKpis = useMemo(() => {
-    const grossRev = dwMeta?.financial_summary?.total_gross_revenue || 428900
-    const lostRev = dwMeta?.financial_summary?.total_lost_revenue_estimate || 24800
-    const champModel = activeForecast?.best_model?.name || 'LSTM Network'
-    const accuracy = activeForecast?.best_model?.metrics?.accuracy || activeForecast?.confidence || 93.4
-
-    return [
-      {
-        label: 'Gross Warehouse Revenue',
-        value: `$${Math.round(grossRev).toLocaleString()}`,
-        change: '+8.4% vs last period',
-        trend: 'up',
-        color: 'text-primary',
-        subtext: `${dwMeta?.financial_summary?.total_units_sold?.toLocaleString() || '18,420'} units observed`,
-      },
-      {
-        label: 'Stockout Lost Revenue',
-        value: `$${Math.round(lostRev).toLocaleString()}`,
-        change: 'Unconstrained Latent Demand',
-        trend: 'down',
-        color: 'text-rose-600',
-        subtext: 'FreshRetailNet-50K Censoring Recovery',
-      },
-      {
-        label: 'Forecast Champion Fit',
-        value: `${champModel}`,
-        change: `${accuracy.toFixed(1)}% Accuracy (Holdout)`,
-        trend: 'up',
-        color: 'text-emerald-600',
-        subtext: `Holdout wMAPE: ${(activeForecast?.best_model?.metrics?.wmape || 0.058).toFixed(3)}`,
-      },
-      {
-        label: 'Inventory Safety Posture',
-        value: 'Optimal (ROP Active)',
-        change: 'Dynamic Lead-Time Buffer',
-        trend: 'up',
-        color: 'text-amber-600',
-        subtext: `${dwMeta?.dimensions?.DimProduct || 6} SKUs tracked in store`,
-      },
-    ]
-  }, [dwMeta, activeForecast])
+  const salesTrendData = useMemo(() => {
+    if (forecastData?.chartData) {
+      return forecastData.chartData
+        .filter((d) => d.actual != null)
+        .map((d) => ({ month: d.month, sales: d.actual }))
+    }
+    return []
+  }, [forecastData])
 
   return (
     <DashboardLayout title="Dashboard">
@@ -135,17 +129,17 @@ export default function Dashboard() {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold uppercase tracking-wider text-primary">
-                {role === 'retailer' && 'Store & Inventory Management Persona'}
-                {role === 'ml_engineer' && 'Data Science & ML Engineering Persona'}
-                {role === 'admin' && 'Enterprise System Administrator Persona'}
+                {role === 'retailer' && 'Store & Inventory Management'}
+                {role === 'ml_engineer' && 'Data Science & Model Benchmarks'}
+                {role === 'admin' && 'Enterprise System Administration'}
               </span>
               <span className="flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                Store {assignedStore === '*' ? 'All Stores' : assignedStore}
+                Store {selectedStore}
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              {role === 'retailer' && 'Prioritizing stockout hazards, safety stock margins, and daily reorder quantities.'}
+              {role === 'retailer' && 'Prioritizing stockout hazards, safety stock margins, and perishable reorder caps.'}
               {role === 'ml_engineer' && 'Tracking multi-model backtest errors (wMAPE, RMSE), R² fit, and tournament champions.'}
               {role === 'admin' && 'Managing dataset ingestion, system health, and cross-functional operational controls.'}
             </p>
@@ -153,13 +147,15 @@ export default function Dashboard() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Link
-            to="/dw-mining"
-            className="flex items-center gap-1.5 rounded-xl bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-600 transition hover:bg-sky-500/20 dark:text-sky-400"
-          >
-            <Database className="h-3.5 w-3.5" />
-            DWM Cubes & Mining
-          </Link>
+          {role === 'admin' && (
+            <Link
+              to="/dw-mining"
+              className="flex items-center gap-1.5 rounded-xl bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-600 transition hover:bg-sky-500/20 dark:text-sky-400"
+            >
+              <Database className="h-3.5 w-3.5" />
+              DWM Cubes & Mining
+            </Link>
+          )}
           {role === 'retailer' && (
             <Link
               to="/inventory"
@@ -183,47 +179,113 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Viewing <span className="font-medium text-slate-700 dark:text-slate-200">{productLabel}</span>
-          {isLive && <span className="ml-2 text-xs font-mono text-emerald-600 font-semibold">• Live Backend Connected</span>}
-        </p>
-        <ProductSelector value={sku} onChange={setSku} />
+      {/* Filter and Selection Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-800/60">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Store Switcher */}
+          {stores.length > 0 && (
+            <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200">
+              <Store className="h-3.5 w-3.5 text-slate-400" />
+              <span>Store:</span>
+              <select
+                value={selectedStore}
+                onChange={(e) => setSelectedStore(e.target.value)}
+                className="bg-transparent font-semibold text-primary focus:outline-none cursor-pointer"
+              >
+                {stores.map((s) => (
+                  <option key={s.store_id || s} value={s.store_id || s}>
+                    {s.store_id || s} {s.store_name ? `· ${s.store_name}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Viewing <span className="font-medium text-slate-700 dark:text-slate-200">{productLabel}</span>
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <ProductSelector value={sku} onChange={setSku} />
+        </div>
       </div>
 
-      <div className="mt-4">
-        <ProductSnapshotCard sku={sku} />
-      </div>
+      {loading ? (
+        <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-16 text-slate-500 shadow-sm dark:border-white/10 dark:bg-slate-800/60">
+          <RefreshCw className="h-8 w-8 animate-spin text-primary mb-3" />
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Calculating real warehouse KPIs & latent demand...</p>
+          <p className="text-xs text-slate-400 mt-1">Evaluating tournament benchmarks and perishable shelf life...</p>
+        </div>
+      ) : !insights || !insights.has_data ? (
+        /* Authentic Empty State — Never show hardcoded fake numbers */
+        <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 p-16 text-center dark:border-white/10 dark:bg-slate-900/40">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500 mb-4">
+            <FolderSync className="h-7 w-7" />
+          </div>
+          <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+            No Warehouse Data for {selectedStore}
+          </h3>
+          <p className="mt-2 max-w-md text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            {insights?.message || 'The star schema facts for this store slice are not yet populated in the dimensional warehouse.'}
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            {role === 'admin' ? (
+              <Link
+                to="/dw-mining"
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-primary/90 transition"
+              >
+                <Database className="h-4 w-4" />
+                Build Warehouse & Run ETL
+              </Link>
+            ) : (
+              <button
+                onClick={() => setSelectedStore('STORE_01')}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-primary/90 transition"
+              >
+                Switch to STORE_01
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="mt-4">
+            <ProductSnapshotCard sku={sku} />
+          </div>
 
-      {/* Dynamic KPIs */}
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {dynamicKpis.map((kpi) => (
-          <KpiCard key={kpi.label} {...kpi} />
-        ))}
-      </div>
+          {/* Authentic KPIs computed directly from API */}
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {insights.kpis.map((kpi) => (
+              <KpiCard key={kpi.id || kpi.label} {...kpi} />
+            ))}
+          </div>
 
-      {/* Charts */}
-      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <SalesTrendChart
-          data={
-            activeForecast.chartData?.filter(d => d.actual != null)?.map(d => ({ month: d.month, sales: d.actual })) || fallbackSalesTrend
-          }
-          subtitle={sku === 'all' ? 'Historical demand observations' : `Historical demand · ${sku}`}
-        />
-        <ForecastGraphChart
-          data={activeForecast.chartData || fallbackForecast.chartData}
-          subtitle={
-            sku === 'all'
-              ? `Actual vs predicted · ${activeForecast.best_model?.name || 'Champion Model'}`
-              : `Actual vs predicted · ${sku} · ${activeForecast.best_model?.name || 'Champion Model'}`
-          }
-        />
-      </div>
+          {/* Charts */}
+          <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <SalesTrendChart
+              data={salesTrendData}
+              subtitle={sku === 'all' ? `Observed daily demand · ${selectedStore}` : `Observed demand · ${sku}`}
+            />
+            <ForecastGraphChart
+              data={forecastData?.chartData || []}
+              subtitle={
+                sku === 'all'
+                  ? `Actual vs predicted · ${insights.champion_model?.name || 'Tournament Champion'}`
+                  : `Actual vs predicted · ${sku} · ${insights.champion_model?.name || 'Tournament Champion'}`
+              }
+              bestModel={forecastData?.best_model || { name: insights.champion_model?.name, metrics: { wmape: insights.champion_model?.wmape } }}
+              allModels={forecastData?.all_models || []}
+            />
+          </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <RecentActivityPanel />
-        <UpcomingAlertsPanel />
-      </div>
+          {/* Dynamic 'What Changed' Insights & Upcoming Alerts */}
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <RecentActivityPanel items={insights.what_changed || []} />
+            <UpcomingAlertsPanel alerts={insights.upcoming_alerts || []} />
+          </div>
+        </>
+      )}
     </DashboardLayout>
   )
 }

@@ -62,6 +62,12 @@ export const api = {
     return apiFetch(`/inventory/recommendations?store_id=${encodeURIComponent(storeId)}&safety_days=${safetyDays}`);
   },
   /**
+   * Authentic dashboard insights, KPIs, and What Changed feed
+   */
+  async getDashboardInsights(storeId = 'STORE_01', sku = 'all') {
+    return apiFetch(`/dashboard/insights?store_id=${encodeURIComponent(storeId)}&sku=${encodeURIComponent(sku)}`);
+  },
+  /**
    * Dataset summary
    */
   async getDatasetSummary() {

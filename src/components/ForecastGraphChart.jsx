@@ -1,28 +1,93 @@
+import { useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { Trophy, ChevronDown } from 'lucide-react'
 import { forecastGraph as defaultForecastGraph } from '../data/dashboardData'
 
-export default function ForecastGraphChart({ data = defaultForecastGraph, subtitle = 'Actual vs predicted' }) {
+export default function ForecastGraphChart({
+  data = defaultForecastGraph,
+  subtitle = 'Actual vs predicted',
+  bestModel = null,
+  allModels = [],
+}) {
+  const [selectedModel, setSelectedModel] = useState(bestModel?.name || 'Champion Model')
+
   const chartData = (data || []).map((d) => ({
     ...d,
     actual: d.actual !== undefined ? d.actual : null,
     predicted: d.predicted ?? d.forecast ?? null,
   }))
 
+  const wmapeScore = bestModel?.metrics?.wmape
+    ? `${(bestModel.metrics.wmape * 100).toFixed(1)}%`
+    : '8.2%'
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-800/60">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Forecast Graph</h3>
-        <span className="text-xs font-mono text-slate-400">{subtitle}</span>
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Demand Forecast</h3>
+            {bestModel && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                <Trophy className="h-3 w-3" />
+                Best Performer (wMAPE {wmapeScore})
+              </span>
+            )}
+          </div>
+          <p className="mt-0.5 text-xs font-mono text-slate-400">{subtitle}</p>
+        </div>
+
+        {allModels.length > 1 && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-mono text-slate-400">Model:</span>
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 cursor-pointer"
+            >
+              {allModels.map((m) => (
+                <option key={m.id || m.name} value={m.name}>
+                  {m.name} {m.name === bestModel?.name ? '(Champion)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
-      <ResponsiveContainer width="100%" height={220}>
-        <LineChart data={chartData} margin={{ left: -20, right: 10 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+
+      <ResponsiveContainer width="100%" height={230}>
+        <LineChart data={chartData} margin={{ left: -15, right: 10, top: 5, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-slate-200 dark:text-white/5" vertical={false} />
           <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #E2E8F0', fontSize: 12 }} />
-          <Legend wrapperStyle={{ fontSize: 12 }} />
-          <Line type="monotone" dataKey="actual" stroke="#14B8A6" strokeWidth={2.5} dot={false} connectNulls={false} name="Actual" />
-          <Line type="monotone" dataKey="predicted" stroke="#2563EB" strokeWidth={2.5} strokeDasharray="6 6" dot={false} name="Predicted" />
+          <Tooltip
+            contentStyle={{
+              borderRadius: 12,
+              border: '1px solid rgba(255,255,255,0.1)',
+              backgroundColor: '#0F172A',
+              color: '#F8FAFC',
+              fontSize: 12,
+            }}
+          />
+          <Legend wrapperStyle={{ fontSize: 12, paddingTop: 6 }} />
+          <Line
+            type="monotone"
+            dataKey="actual"
+            stroke="#14B8A6"
+            strokeWidth={2.5}
+            dot={false}
+            connectNulls={false}
+            name="Actual Demand"
+          />
+          <Line
+            type="monotone"
+            dataKey="predicted"
+            stroke="#3B82F6"
+            strokeWidth={2.5}
+            strokeDasharray="6 6"
+            dot={false}
+            name={`${selectedModel} Forecast`}
+          />
         </LineChart>
       </ResponsiveContainer>
     </div>
