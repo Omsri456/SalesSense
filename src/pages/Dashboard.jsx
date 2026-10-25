@@ -10,6 +10,7 @@ import ProductSelector from '../components/ProductSelector'
 import ProductSnapshotCard from '../components/ProductSnapshotCard'
 import HourWeekdayHeatmap from '../components/HourWeekdayHeatmap'
 import CategorySparklines from '../components/CategorySparklines'
+import HierarchyLevelSwitcher from '../components/HierarchyLevelSwitcher'
 import { api } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import { useProducts } from '../hooks/useProducts'
@@ -42,6 +43,9 @@ export default function Dashboard() {
   const [forecastData, setForecastData] = useState(null)
   const [heatmapData, setHeatmapData] = useState([])
   const [categoryTrends, setCategoryTrends] = useState([])
+  const [hierarchyLevel, setHierarchyLevel] = useState('category')
+  const [hierarchyItems, setHierarchyItems] = useState([])
+  const [hierarchyLoading, setHierarchyLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -116,6 +120,31 @@ export default function Dashboard() {
       active = false
     }
   }, [selectedStore, sku])
+
+  // Load Kimball star schema hierarchy aggregation
+  useEffect(() => {
+    let active = true
+    async function loadHierarchy() {
+      setHierarchyLoading(true)
+      try {
+        const res = await api.getHierarchy(selectedStore, hierarchyLevel)
+        if (active && res && Array.isArray(res.items)) {
+          setHierarchyItems(res.items)
+        }
+      } catch (err) {
+        if (active) setHierarchyItems([])
+      } finally {
+        if (active) setHierarchyLoading(false)
+      }
+    }
+
+    if (selectedStore) {
+      loadHierarchy()
+    }
+    return () => {
+      active = false
+    }
+  }, [selectedStore, hierarchyLevel])
 
   const productLabel = products.find((p) => p.value === sku)?.label ?? 'All Products'
 
@@ -301,6 +330,16 @@ export default function Dashboard() {
           <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
             <HourWeekdayHeatmap data={heatmapData} />
             <CategorySparklines categories={categoryTrends} />
+          </div>
+
+          {/* Kimball Star Schema Hierarchy Aggregation & SKU Drilldown */}
+          <div className="mt-6">
+            <HierarchyLevelSwitcher
+              level={hierarchyLevel}
+              onLevelChange={setHierarchyLevel}
+              items={hierarchyItems}
+              loading={hierarchyLoading}
+            />
           </div>
 
           {/* Dynamic 'What Changed' Insights & Upcoming Alerts */}

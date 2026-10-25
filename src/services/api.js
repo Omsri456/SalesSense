@@ -80,6 +80,12 @@ export const api = {
     return apiFetch(`/dashboard/category-trends?store_id=${encodeURIComponent(storeId)}`);
   },
   /**
+   * Kimball Star Schema Hierarchy Aggregation (sku | subcategory | category | group)
+   */
+  async getHierarchy(storeId = 'STORE_01', level = 'category') {
+    return apiFetch(`/dashboard/hierarchy?store_id=${encodeURIComponent(storeId)}&level=${encodeURIComponent(level)}`);
+  },
+  /**
    * Dataset summary
    */
   async getDatasetSummary() {

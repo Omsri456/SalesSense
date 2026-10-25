@@ -415,3 +415,88 @@ async def get_category_trends(
         "date_range_days": 14,
         "categories": cat_trends,
     }
+
+
+@router.get("/hierarchy")
+async def get_hierarchy_aggregation(
+    store_id: str = Query("STORE_01", description="Store ID for hierarchy"),
+    level: str = Query("category", description="Aggregation level: sku | subcategory | category | group"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Kimball Star Schema Hierarchy Aggregation (FR-8, FR-9).
+    Supports dynamic aggregation across DimProduct hierarchy:
+    product_id -> third_category_id -> second_category_id -> first_category_id -> management_group_id
+    """
+    await verify_store_access(store_id, current_user)
+
+    facts_df = dw_engine.get_facts_view()
+    if facts_df is None or facts_df.empty:
+        return {"store_id": store_id, "level": level, "items": []}
+
+    store_slice = facts_df if store_id == "all" else facts_df[facts_df["store_id"] == store_id]
+    if store_slice.empty:
+        return {"store_id": store_id, "level": level, "items": []}
+
+    revenue_col = "gross_revenue" if "gross_revenue" in store_slice.columns else "sale_amount"
+
+    # Determine grouping column based on Kimball DimProduct hierarchy
+    if level == "group":
+        group_col = "management_group_id" if "management_group_id" in store_slice.columns else "category"
+    elif level == "subcategory":
+        group_col = "second_category_id" if "second_category_id" in store_slice.columns else "category"
+    elif level == "category":
+        group_col = "category"
+    else:  # sku
+        group_col = "product_id"
+
+    items = []
+    shelf_map = _get_shelf_map()
+
+    for g_val, g_df in store_slice.groupby(group_col):
+        g_name = str(g_df.iloc[0].get("category", g_val)) if level != "sku" else str(g_df.iloc[0].get("product_name", f"Product {g_val}"))
+        if level == "group":
+            g_name = f"Group {g_val} · Fresh & Perishables" if str(g_val) == "1" else f"Group {g_val} · Dry & Ambient"
+        elif level == "subcategory":
+            g_name = f"Subcategory {g_val} · {g_df.iloc[0].get('category', 'General')}"
+
+        tot_rev = float(round(g_df[revenue_col].sum(), 2))
+        tot_units = int(round(g_df["observed_sales"].sum())) if "observed_sales" in g_df.columns else int(g_df["sale_amount"].sum())
+        lost_rev = float(round(g_df["lost_revenue_estimate"].sum(), 2)) if "lost_revenue_estimate" in g_df.columns else 0.0
+
+        # Constituent SKUs for drilldown
+        skus = []
+        for pid, pgroup in g_df.groupby("product_id"):
+            frow = pgroup.iloc[0]
+            cat_name = str(frow.get("category", "General"))
+            skus.append({
+                "product_id": str(pid),
+                "product_name": str(frow.get("product_name", f"Product {pid}")),
+                "category": cat_name,
+                "unit_price": float(frow.get("unit_price", 5.0)),
+                "shelf_life_days": int(frow.get("shelf_life_days") or shelf_map.get(cat_name, 14)),
+                "revenue": float(round(pgroup[revenue_col].sum(), 2)),
+                "units_sold": int(round(pgroup["observed_sales"].sum())) if "observed_sales" in pgroup.columns else 0,
+            })
+
+        skus.sort(key=lambda x: x["revenue"], reverse=True)
+
+        items.append({
+            "id": str(g_val),
+            "name": g_name,
+            "level": level,
+            "total_revenue": tot_rev,
+            "units_sold": tot_units,
+            "observed_sales": tot_units,
+            "lost_revenue_estimate": lost_rev,
+            "sku_count": len(skus),
+            "skus": skus,
+            "constituent_skus": skus,
+        })
+
+    items.sort(key=lambda x: x["total_revenue"], reverse=True)
+    return {
+        "store_id": store_id,
+        "level": level,
+        "items": items,
+    }
