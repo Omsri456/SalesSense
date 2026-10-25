@@ -69,13 +69,13 @@ def _get_user_allowed_stores(current_user: Dict[str, Any]) -> Optional[List[str]
 
 
 @router.get("/metadata")
-def get_warehouse_metadata(current_user: Dict[str, Any] = Depends(get_current_user)):
+def get_warehouse_metadata(current_user: Dict[str, Any] = Depends(require_role(["admin"]))):
     """Retrieve metadata about the Kimball Star Schema and tables."""
     return dw_engine.get_warehouse_metadata()
 
 
 @router.get("/schema")
-def get_star_schema_topology(current_user: Dict[str, Any] = Depends(get_current_user)):
+def get_star_schema_topology(current_user: Dict[str, Any] = Depends(require_role(["admin"]))):
     """
     Returns explicit Kimball Star Schema topology:
     Fact table with grain, additive measures, and surrounding dimension tables with hierarchies.
@@ -144,19 +144,27 @@ def get_star_schema_topology(current_user: Dict[str, Any] = Depends(get_current_
                 "attributes": ["promotion_name", "discount_rate", "activity_flag", "is_holiday"],
                 "cardinality": meta.get("dimensions", {}).get("DimPromotion", 3),
             },
+            {
+                "name": "DimWeather",
+                "table": "dim_weather",
+                "key": "weather_key",
+                "natural_key": "date_str",
+                "attributes": ["avg_temperature", "avg_humidity", "precpt", "avg_wind_level", "weather_condition"],
+                "cardinality": meta.get("dimensions", {}).get("DimWeather", 0),
+            },
         ],
     }
 
 
 @router.post("/rebuild")
-def rebuild_warehouse(current_user: Dict[str, Any] = Depends(require_role(["admin", "ml_engineer"]))):
+def rebuild_warehouse(current_user: Dict[str, Any] = Depends(require_role(["admin"]))):
     """Rebuilds the dimensional data warehouse from staging data."""
     meta = dw_engine.build_warehouse(force_rebuild=True)
     return {"message": "Warehouse successfully rebuilt", "metadata": meta}
 
 
 @router.post("/etl/run")
-def execute_etl_pipeline(current_user: Dict[str, Any] = Depends(require_role(["admin", "ml_engineer"]))):
+def execute_etl_pipeline(current_user: Dict[str, Any] = Depends(require_role(["admin"]))):
     """
     Executes complete Extract-Transform-Load (ETL) pipeline with stage reconciliation.
     Records audit log in persistent EtlRun table.
@@ -174,7 +182,7 @@ def execute_etl_pipeline(current_user: Dict[str, Any] = Depends(require_role(["a
 @router.get("/etl/runs")
 def list_etl_runs(
     limit: int = Query(10, ge=1, le=50),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_role(["admin"])),
 ):
     """Retrieves history of ETL pipeline executions from persistent database."""
     return dw_engine.get_etl_runs(limit=limit)
@@ -183,7 +191,7 @@ def list_etl_runs(
 @router.post("/rollup")
 def execute_rollup(
     req: RollupRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_role(["admin"])),
 ):
     """Roll up facts to a higher-level dimensional hierarchy."""
     try:
@@ -204,7 +212,7 @@ def execute_rollup(
 @router.post("/drilldown")
 def execute_drilldown(
     req: DrilldownRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_role(["admin"])),
 ):
     """Drill down from a parent category to granular child items."""
     try:
@@ -231,7 +239,7 @@ def execute_drilldown(
 @router.post("/slice")
 def execute_slice(
     req: SliceRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_role(["admin"])),
 ):
     """Slice warehouse cube along a single dimension."""
     try:
@@ -257,7 +265,7 @@ def execute_slice(
 @router.post("/dice")
 def execute_dice(
     req: DiceRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_role(["admin"])),
 ):
     """Dice the warehouse cube across multi-dimensional criteria."""
     try:
@@ -287,7 +295,7 @@ def execute_dice(
 @router.post("/pivot")
 def execute_pivot(
     req: PivotRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_role(["admin"])),
 ):
     """Generate a 2D cross-tabulation pivot matrix."""
     try:

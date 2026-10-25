@@ -188,18 +188,21 @@ def test_dw_api_endpoints_and_rbac():
     headers_admin = {"Authorization": f"Bearer {admin_token}"}
     headers_ret1 = {"Authorization": f"Bearer {retailer1_token}"}
 
-    # 1. Metadata
+    # 1. Metadata (Admin only)
     meta_res = client.get("/api/dw/metadata", headers=headers_admin)
     assert meta_res.status_code == 200
 
-    # 2. Schema Topology
-    schema_res = client.get("/api/dw/schema", headers=headers_ret1)
+    # 2. Schema Topology (Admin succeeds, Retailer gets 403 Forbidden)
+    schema_res = client.get("/api/dw/schema", headers=headers_admin)
     assert schema_res.status_code == 200
     schema = schema_res.json()
     assert schema["fact_table"]["name"] == "FactDailySales"
-    assert len(schema["dimensions"]) == 5
+    assert len(schema["dimensions"]) >= 5
 
-    # 3. ETL Pipeline Run via API
+    bad_schema = client.get("/api/dw/schema", headers=headers_ret1)
+    assert bad_schema.status_code == 403
+
+    # 3. ETL Pipeline Run via API (Admin succeeds)
     etl_res = client.post("/api/dw/etl/run", headers=headers_admin)
     assert etl_res.status_code == 200
     assert etl_res.json()["status"] == "success"
@@ -208,12 +211,15 @@ def test_dw_api_endpoints_and_rbac():
     bad_etl = client.post("/api/dw/etl/run", headers=headers_ret1)
     assert bad_etl.status_code == 403
 
-    # 5. Rollup
-    roll_res = client.post("/api/dw/rollup", json={"hierarchy_level": "category"}, headers=headers_ret1)
+    # 5. Rollup (Admin succeeds, Retailer gets 403 Forbidden)
+    roll_res = client.post("/api/dw/rollup", json={"hierarchy_level": "category"}, headers=headers_admin)
     assert roll_res.status_code == 200
     assert len(roll_res.json()["data"]) > 0
 
-    # 6. Slice with forbidden store scope -> 403 Forbidden
+    bad_rollup = client.post("/api/dw/rollup", json={"hierarchy_level": "category"}, headers=headers_ret1)
+    assert bad_rollup.status_code == 403
+
+    # 6. Slice (Retailer gets 403 Forbidden)
     slice_bad = client.post(
         "/api/dw/slice",
         json={"dimension": "store_id", "value": "STORE_02"},

@@ -102,3 +102,33 @@ def test_admin_user_management_access():
     assert adm_res.status_code == 200
     users = adm_res.json()
     assert len(users) >= 4
+
+
+def test_dw_and_mining_role_restrictions():
+    """Verify DW and Mining endpoints strictly enforce 403 for retailer and ml_engineer, while admin succeeds."""
+    login_ret = client.post("/api/auth/login", json={"email": "retailer1@salessense.com", "password": "Password123!"})
+    ret_headers = {"Authorization": f"Bearer {login_ret.json()['access_token']}"}
+
+    login_ml = client.post("/api/auth/login", json={"email": "mle@salessense.com", "password": "Password123!"})
+    ml_headers = {"Authorization": f"Bearer {login_ml.json()['access_token']}"}
+
+    login_adm = client.post("/api/auth/login", json={"email": "admin@salessense.com", "password": "Password123!"})
+    adm_headers = {"Authorization": f"Bearer {login_adm.json()['access_token']}"}
+
+    # 1. Retailer gets 403 on DW & Mining
+    assert client.get("/api/dw/metadata", headers=ret_headers).status_code == 403
+    assert client.get("/api/dw/schema", headers=ret_headers).status_code == 403
+    assert client.post("/api/dw/rollup", json={"hierarchy_level": "category"}, headers=ret_headers).status_code == 403
+    assert client.get("/api/mining/market-basket", headers=ret_headers).status_code == 403
+    assert client.get("/api/mining/demand-clusters", headers=ret_headers).status_code == 403
+
+    # 2. ML Engineer gets 403 on DW & Mining
+    assert client.get("/api/dw/metadata", headers=ml_headers).status_code == 403
+    assert client.get("/api/dw/schema", headers=ml_headers).status_code == 403
+    assert client.post("/api/dw/rollup", json={"hierarchy_level": "category"}, headers=ml_headers).status_code == 403
+    assert client.get("/api/mining/market-basket", headers=ml_headers).status_code == 403
+
+    # 3. Admin gets 200
+    assert client.get("/api/dw/metadata", headers=adm_headers).status_code == 200
+    assert client.get("/api/dw/schema", headers=adm_headers).status_code == 200
+    assert client.get("/api/mining/market-basket", headers=adm_headers).status_code == 200

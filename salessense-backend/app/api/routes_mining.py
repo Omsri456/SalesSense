@@ -8,7 +8,7 @@ Exposes retail data mining algorithms over the data warehouse:
 
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, Query, HTTPException
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_role
 from app.services.mining_service import mining_engine
 
 router = APIRouter(prefix="/mining", tags=["Data Mining"])
@@ -31,7 +31,7 @@ def get_market_basket_analysis(
     min_support: float = Query(0.05, ge=0.001, le=1.0, description="Minimum support threshold"),
     min_confidence: float = Query(0.2, ge=0.01, le=1.0, description="Minimum confidence threshold"),
     level: str = Query("product_name", description="Analysis level: 'product_name' or 'category'"),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_role(["admin"])),
 ):
     """Executes Apriori association rule mining for cross-product purchase associations."""
     try:
@@ -50,7 +50,7 @@ def get_market_basket_analysis(
 @router.get("/demand-clusters")
 def get_demand_regime_clusters(
     n_clusters: int = Query(4, ge=2, le=8, description="Number of demand regime clusters"),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_role(["admin"])),
 ):
     """Executes K-Means clustering across store-SKU velocity and volatility profiles."""
     try:
@@ -70,7 +70,7 @@ def get_sales_anomalies(
     product_id: Optional[str] = Query(None, description="Optional product filter"),
     z_threshold: float = Query(1.8, ge=1.0, le=5.0, description="Z-score anomaly threshold"),
     rolling_window: int = Query(7, ge=3, le=30, description="Rolling baseline window in days"),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_role(["admin"])),
 ):
     """Detects sales spikes and plunges with stockout loss cross-referencing."""
     try:
@@ -93,7 +93,7 @@ def get_sales_anomalies(
 
 
 @router.get("/comovement")
-def get_demand_comovement(current_user: Dict[str, Any] = Depends(get_current_user)):
+def get_demand_comovement(current_user: Dict[str, Any] = Depends(require_role(["admin"]))):
     """Computes cross-product synchronous demand co-movement correlation matrix."""
     try:
         allowed_stores = _get_user_allowed_stores(current_user)
@@ -108,7 +108,7 @@ def get_decision_tree_induction(
     max_depth: int = Query(3, ge=2, le=5, description="Maximum tree depth for induction"),
     criterion: str = Query("gini", description="Splitting criterion: 'gini' or 'entropy'"),
     target_variable: str = Query("stockout_risk", description="Target variable: 'stockout_risk' or 'demand_velocity'"),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_role(["admin"])),
 ):
     """Executes Decision Tree induction (CART / C4.5) over warehouse facts."""
     try:

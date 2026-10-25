@@ -10,7 +10,6 @@ import Forecast from '../pages/Forecast'
 import Models from '../pages/Models'
 import Reports from '../pages/Reports'
 import Profile from '../pages/Profile'
-import Settings from '../pages/Settings'
 import DataWarehouseMining from '../pages/DataWarehouseMining'
 import ProtectedRoute from './ProtectedRoute'
 
@@ -35,7 +34,7 @@ export default function AppRoutes() {
       <Route
         path="/dw-mining"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin']}>
             <DataWarehouseMining />
           </ProtectedRoute>
         }
@@ -61,14 +60,6 @@ export default function AppRoutes() {
         element={
           <ProtectedRoute>
             <Profile />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/settings"
-        element={
-          <ProtectedRoute>
-            <Settings />
           </ProtectedRoute>
         }
       />

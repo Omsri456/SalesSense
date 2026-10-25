@@ -141,7 +141,7 @@ export default function Dashboard() {
               </span>
               <span className="flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                Store Scope: {assignedStore === '*' ? 'Global' : assignedStore}
+                Store {assignedStore === '*' ? 'All Stores' : assignedStore}
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
