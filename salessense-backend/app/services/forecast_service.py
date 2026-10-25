@@ -91,6 +91,8 @@ class ForecastService:
         time_col = "timestamp" if "timestamp" in featured_df.columns else "dt"
         featured_df["period_m"] = pd.to_datetime(featured_df[time_col]).dt.to_period("M")
         monthly_groups = featured_df.groupby("period_m")["sale_amount"].sum()
+        latent_col = "estimated_latent_demand" if "estimated_latent_demand" in featured_df.columns else "sale_amount"
+        monthly_latent = featured_df.groupby("period_m")[latent_col].sum()
         recent_months = monthly_groups.tail(6)
 
         chart_points: List[ChartDataPoint] = []
@@ -98,10 +100,14 @@ class ForecastService:
         for idx, (period, total_sales) in enumerate(recent_list):
             m_label = period.strftime("%b")
             is_last = idx == len(recent_list) - 1
+            latent_val = int(round(monthly_latent.get(period, total_sales)))
+            lost_val = max(0, latent_val - int(total_sales))
             chart_points.append(
                 ChartDataPoint(
                     month=m_label,
                     actual=int(total_sales),
+                    latent_demand=latent_val,
+                    lost_sales=lost_val,
                     forecast=int(total_sales) if is_last else None,
                     predicted=int(total_sales) if is_last else None,
                 )

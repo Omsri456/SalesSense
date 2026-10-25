@@ -30,6 +30,8 @@ class ChartDataPoint(BaseModel):
     predicted: Optional[int] = None
     low: Optional[int] = None
     high: Optional[int] = None
+    latent_demand: Optional[int] = None
+    lost_sales: Optional[int] = None
 
 
 class BestModelDetails(BaseModel):

@@ -68,6 +68,18 @@ export const api = {
     return apiFetch(`/dashboard/insights?store_id=${encodeURIComponent(storeId)}&sku=${encodeURIComponent(sku)}`);
   },
   /**
+   * Hour x Weekday heatmap of sales and stockout concentration
+   */
+  async getDashboardHeatmap(storeId = 'STORE_01') {
+    return apiFetch(`/dashboard/heatmap?store_id=${encodeURIComponent(storeId)}`);
+  },
+  /**
+   * 14-day Category sparklines and inventory posture
+   */
+  async getCategoryTrends(storeId = 'STORE_01') {
+    return apiFetch(`/dashboard/category-trends?store_id=${encodeURIComponent(storeId)}`);
+  },
+  /**
    * Dataset summary
    */
   async getDatasetSummary() {

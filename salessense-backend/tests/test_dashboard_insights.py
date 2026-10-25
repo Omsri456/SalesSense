@@ -75,3 +75,44 @@ def test_dashboard_insights_empty_store_state():
     data = res.json()
     assert data["has_data"] is False
     assert "message" in data
+
+
+def test_dashboard_heatmap():
+    """Verify Hour x Weekday heatmap distribution endpoint."""
+    token = _get_token("admin@salessense.com")
+    res = client.get(
+        "/api/dashboard/heatmap?store_id=STORE_01",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200, res.text
+    data = res.json()
+    assert "cells" in data
+    assert len(data["cells"]) == 7 * 17  # 7 days x 17 operating hours (6 to 22)
+    assert data["operating_hours"] == "06:00 - 22:00"
+
+    first_cell = data["cells"][0]
+    assert "day" in first_cell
+    assert "hour" in first_cell
+    assert "units_avg" in first_cell
+    assert "stockout_rate" in first_cell
+
+
+def test_dashboard_category_trends():
+    """Verify 14-day category sparkline trend endpoint."""
+    token = _get_token("admin@salessense.com")
+    res = client.get(
+        "/api/dashboard/category-trends?store_id=STORE_01",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200, res.text
+    data = res.json()
+    assert "categories" in data
+    assert len(data["categories"]) > 0
+
+    first_cat = data["categories"][0]
+    assert "category" in first_cat
+    assert "total_revenue" in first_cat
+    assert "trend_14d" in first_cat
+    assert "shelf_life_days" in first_cat
+    assert "is_perishable" in first_cat
+    assert "lead_time_days" in first_cat

@@ -8,6 +8,8 @@ import RecentActivityPanel from '../components/RecentActivityPanel'
 import UpcomingAlertsPanel from '../components/UpcomingAlertsPanel'
 import ProductSelector from '../components/ProductSelector'
 import ProductSnapshotCard from '../components/ProductSnapshotCard'
+import HourWeekdayHeatmap from '../components/HourWeekdayHeatmap'
+import CategorySparklines from '../components/CategorySparklines'
 import { api } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import { useProducts } from '../hooks/useProducts'
@@ -38,6 +40,8 @@ export default function Dashboard() {
   const { products } = useProducts()
   const [insights, setInsights] = useState(null)
   const [forecastData, setForecastData] = useState(null)
+  const [heatmapData, setHeatmapData] = useState([])
+  const [categoryTrends, setCategoryTrends] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -74,9 +78,11 @@ export default function Dashboard() {
       try {
         setLoading(true)
         setError(null)
-        const [insightsRes, fcRes] = await Promise.allSettled([
+        const [insightsRes, fcRes, heatRes, catRes] = await Promise.allSettled([
           api.getDashboardInsights(selectedStore, sku),
           api.getForecast(selectedStore, sku, 90),
+          api.getDashboardHeatmap(selectedStore),
+          api.getCategoryTrends(selectedStore),
         ])
 
         if (!active) return
@@ -89,6 +95,12 @@ export default function Dashboard() {
 
         if (fcRes.status === 'fulfilled') {
           setForecastData(fcRes.value)
+        }
+        if (heatRes.status === 'fulfilled' && heatRes.value?.cells) {
+          setHeatmapData(heatRes.value.cells)
+        }
+        if (catRes.status === 'fulfilled' && catRes.value?.categories) {
+          setCategoryTrends(catRes.value.categories)
         }
       } catch (err) {
         if (active) setError(err.message || 'Error communicating with backend.')
@@ -111,7 +123,13 @@ export default function Dashboard() {
     if (forecastData?.chartData) {
       return forecastData.chartData
         .filter((d) => d.actual != null)
-        .map((d) => ({ month: d.month, sales: d.actual }))
+        .map((d) => ({
+          month: d.month,
+          sales: d.actual,
+          actual: d.actual,
+          latent_demand: d.latent_demand,
+          lost_sales: d.lost_sales,
+        }))
     }
     return []
   }, [forecastData])
@@ -277,6 +295,12 @@ export default function Dashboard() {
               bestModel={forecastData?.best_model || { name: insights.champion_model?.name, metrics: { wmape: insights.champion_model?.wmape } }}
               allModels={forecastData?.all_models || []}
             />
+          </div>
+
+          {/* Hour x Weekday Demand Heatmap & Category Sparklines */}
+          <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <HourWeekdayHeatmap data={heatmapData} />
+            <CategorySparklines categories={categoryTrends} />
           </div>
 
           {/* Dynamic 'What Changed' Insights & Upcoming Alerts */}
