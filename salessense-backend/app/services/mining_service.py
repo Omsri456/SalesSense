@@ -483,5 +483,179 @@ class RetailDataMiningEngine:
             "anomalies": anomalies[:150],
         }
 
+    # =========================================================================
+    # 5. DECISION TREE CLASSIFICATION (CART / C4.5 ACADEMIC DWM MODULE)
+    # =========================================================================
+    def decision_tree_analysis(
+        self,
+        max_depth: int = 3,
+        criterion: str = "gini",  # 'gini' or 'entropy'
+        target_variable: str = "stockout_risk",  # 'stockout_risk' or 'demand_velocity'
+        allowed_stores: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Executes Decision Tree classification induction over the warehouse fact data:
+        - Features: unit_price, discount, is_weekend, holiday_flag, avg_temperature, precpt.
+        - Targets: Stockout Severity Vulnerability OR Demand Velocity Tier.
+        - Outputs: Tree graph hierarchy, Gini impurity/entropy, sample distributions,
+          extracted IF-THEN classification rules, and Gini feature importances.
+        """
+        df = self._get_scoped_data(allowed_stores)
+        if df.empty:
+            return {"error": "Warehouse dataset is empty.", "tree_hierarchy": None, "rules": []}
+
+        df = df.copy()
+
+        # Selected standard retail analytical features
+        feature_cols = [
+            "unit_price",
+            "discount",
+            "is_weekend",
+            "holiday_flag",
+            "avg_temperature",
+            "precpt",
+        ]
+
+        # Ensure all columns exist and are numeric
+        for col in feature_cols:
+            if col not in df.columns:
+                df[col] = 0.0
+            else:
+                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+
+        X = df[feature_cols].copy()
+        X.columns = [str(c) for c in X.columns]
+
+        # Prepare Target
+        if target_variable == "demand_velocity":
+            sales = pd.to_numeric(df["observed_sales"], errors="coerce").fillna(0.0)
+            q33 = float(sales.quantile(0.33))
+            q66 = float(sales.quantile(0.66))
+            y = np.where(sales >= q66, 2, np.where(sales >= q33, 1, 0))
+            class_names = ["Low / Intermittent Demand", "Standard Demand", "High Velocity Demand"]
+            target_description = "Daily Sales Demand Volume Tier (Tercile Partitioning)"
+        else:
+            # Default: stockout risk
+            stk_hours = pd.to_numeric(df["stock_hour6_22_cnt"], errors="coerce").fillna(16)
+            y = np.where(stk_hours == 16, 0, np.where(stk_hours >= 12, 1, 2))
+            class_names = ["Normal / In-Stock", "Moderate Stockout Risk", "Critical Stockout Risk"]
+            target_description = "Daily Inventory Stockout Vulnerability Class"
+
+        # Fit Decision Tree
+        max_depth = max(2, min(5, int(max_depth)))
+        criterion = criterion if criterion in ["gini", "entropy", "log_loss"] else "gini"
+
+        clf = DecisionTreeClassifier(
+            max_depth=max_depth,
+            criterion=criterion,
+            random_state=42,
+            min_samples_leaf=10,
+        )
+        clf.fit(X, y)
+
+        accuracy = float(round(clf.score(X, y), 3))
+
+        # Extract hierarchical tree structure for frontend rendering
+        def _get_node_metrics(tree, node_id):
+            raw_val = tree.value[node_id][0]
+            total_v = float(np.sum(raw_val))
+            n_samples = int(tree.n_node_samples[node_id])
+            if total_v > 0 and total_v <= 1.05:
+                # Value stored as class probabilities
+                counts = [int(round(float(v) * n_samples)) for v in raw_val]
+                confs = [float(round(float(v), 3)) for v in raw_val]
+            else:
+                counts = [int(round(float(v))) for v in raw_val]
+                confs = [float(round(float(v) / total_v, 3)) if total_v > 0 else 0.0 for v in raw_val]
+            pred_idx = int(np.argmax(raw_val))
+            return counts, confs, pred_idx, n_samples
+
+        def _build_tree_node(tree, node_id=0):
+            is_leaf = tree.children_left[node_id] == _tree.TREE_LEAF
+            feat_idx = tree.feature[node_id]
+            feat_name = feature_cols[feat_idx] if feat_idx >= 0 else None
+            threshold = float(round(tree.threshold[node_id], 3)) if feat_idx >= 0 else None
+            impurity = float(round(tree.impurity[node_id], 3))
+            counts, confs, pred_idx, n_samples = _get_node_metrics(tree, node_id)
+            pred_class = class_names[pred_idx]
+            confidence = confs[pred_idx]
+
+            node = {
+                "node_id": int(node_id),
+                "is_leaf": bool(is_leaf),
+                "feature": feat_name,
+                "threshold": threshold,
+                "impurity": impurity,
+                "criterion": criterion,
+                "samples": n_samples,
+                "value": counts,
+                "predicted_class": pred_class,
+                "class_distribution": {
+                    class_names[i]: counts[i] for i in range(len(class_names))
+                },
+                "confidence": confidence,
+            }
+
+            if not is_leaf:
+                node["left"] = _build_tree_node(tree, tree.children_left[node_id])
+                node["right"] = _build_tree_node(tree, tree.children_right[node_id])
+            return node
+
+        # Extract human-interpretable IF-THEN classification rules
+        def _extract_rules(tree, node_id=0, current_path=None):
+            if current_path is None:
+                current_path = []
+
+            if tree.children_left[node_id] == _tree.TREE_LEAF:
+                counts, confs, pred_idx, n_samples = _get_node_metrics(tree, node_id)
+                pred_class = class_names[pred_idx]
+                confidence = confs[pred_idx]
+                support = round(n_samples / len(df), 3)
+
+                cond_text = " AND ".join(current_path) if current_path else "Always"
+                return [{
+                    "rule_id": f"R-{node_id}",
+                    "conditions": list(current_path),
+                    "predicted_class": pred_class,
+                    "confidence": confidence,
+                    "support": support,
+                    "samples": n_samples,
+                    "rule_text": f"IF {cond_text} THEN Class = {pred_class} (Confidence: {int(round(confidence*100))}%, Support: {int(round(support*100))}%)",
+                }]
+
+            feat = feature_cols[tree.feature[node_id]]
+            thresh = round(float(tree.threshold[node_id]), 2)
+            rules = []
+            rules.extend(_extract_rules(tree, tree.children_left[node_id], current_path + [f"{feat} <= {thresh}"]))
+            rules.extend(_extract_rules(tree, tree.children_right[node_id], current_path + [f"{feat} > {thresh}"]))
+            return rules
+
+        tree_hierarchy = _build_tree_node(clf.tree_, 0)
+        rules_list = _extract_rules(clf.tree_, 0)
+        rules_list.sort(key=lambda r: (r["confidence"], r["samples"]), reverse=True)
+
+        feature_importances = [
+            {"feature": feat, "importance": round(float(imp), 4)}
+            for feat, imp in sorted(
+                zip(feature_cols, clf.feature_importances_),
+                key=lambda x: x[1],
+                reverse=True,
+            )
+        ]
+
+        return {
+            "algorithm": f"Decision Tree Induction ({criterion.upper()})",
+            "target_variable": target_variable,
+            "target_description": target_description,
+            "classes": class_names,
+            "max_depth": max_depth,
+            "criterion": criterion,
+            "total_records": len(df),
+            "model_accuracy": accuracy,
+            "feature_importances": feature_importances,
+            "tree_hierarchy": tree_hierarchy,
+            "rules": rules_list,
+        }
+
 
 mining_engine = RetailDataMiningEngine()

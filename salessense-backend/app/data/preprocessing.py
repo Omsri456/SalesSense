@@ -201,7 +201,32 @@ def preprocess_series(
 
     if store_id and "store_id" in cleaned.columns and store_id != "all":
         cleaned = cleaned[cleaned["store_id"] == store_id]
-    if product_id and "product_id" in cleaned.columns and product_id != "all":
+    if product_id and product_id.startswith("cat:") and "category" in cleaned.columns:
+        cat_name = product_id.split("cat:", 1)[1]
+        cleaned = cleaned[cleaned["category"].str.lower() == cat_name.lower()]
+        # Category aggregate: aggregate across all products in this category per timestamp
+        agg_rules = {
+            "sale_amount": "sum",
+            "unit_price": "mean",
+            "discount": "mean",
+            "holiday_flag": "max",
+            "activity_flag": "max",
+            "stock_hour6_22_cnt": "mean",
+            "is_stockout_affected": "max",
+            "precpt": "first",
+            "avg_temperature": "first",
+            "avg_humidity": "first",
+            "avg_wind_level": "first",
+        }
+        for col in ["store_id", "city_id"]:
+            if col in cleaned.columns:
+                agg_rules[col] = "first"
+
+        actual_agg = {k: v for k, v in agg_rules.items() if k in cleaned.columns}
+        cleaned = cleaned.groupby("timestamp", as_index=False).agg(actual_agg)
+        cleaned["product_id"] = product_id
+        cleaned["category"] = cat_name
+    elif product_id and "product_id" in cleaned.columns and product_id != "all":
         cleaned = cleaned[cleaned["product_id"] == product_id]
     elif product_id == "all":
         # Store aggregate: aggregate across all products per timestamp

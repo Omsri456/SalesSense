@@ -467,19 +467,41 @@ class IngestionService:
                 "leadTimeDays": lead_time,
             })
 
-        # Add Store Aggregate "all" item
+        # Add Store Aggregate "all" item and Category Aggregate items
         if product_items:
-            product_items.insert(0, {
-                "value": "all",
-                "label": "All Products (Store Aggregate)",
-                "category": "All",
-                "store_id": "STORE_01" if not store_filter else store_filter[0],
-                "currentStock": sum(p["currentStock"] for p in product_items),
-                "reorderPoint": sum(p["reorderPoint"] for p in product_items),
-                "unitCost": 12.50,
-                "safetyStock": sum(p["safetyStock"] for p in product_items),
-                "leadTimeDays": 3,
-            })
+            # Category aggregates
+            categories = sorted(dataset["category"].dropna().unique().tolist())
+            cat_items = []
+            for cat in categories:
+                cat_df = dataset[dataset["category"] == cat]
+                cat_skus = [p for p in product_items if p["category"] == cat]
+                cat_items.append({
+                    "value": f"cat:{cat}",
+                    "label": f"Category: {cat} (Aggregated)",
+                    "category": cat,
+                    "store_id": "STORE_01" if not store_filter else store_filter[0],
+                    "currentStock": sum(p["currentStock"] for p in cat_skus),
+                    "reorderPoint": sum(p["reorderPoint"] for p in cat_skus),
+                    "unitCost": round(float(cat_df["unit_price"].mean()), 2) if "unit_price" in cat_df.columns else 8.5,
+                    "safetyStock": sum(p["safetyStock"] for p in cat_skus),
+                    "leadTimeDays": 3,
+                })
+
+            product_items = [
+                {
+                    "value": "all",
+                    "label": "All Products (Store Aggregate)",
+                    "category": "All",
+                    "store_id": "STORE_01" if not store_filter else store_filter[0],
+                    "currentStock": sum(p["currentStock"] for p in product_items),
+                    "reorderPoint": sum(p["reorderPoint"] for p in product_items),
+                    "unitCost": 12.50,
+                    "safetyStock": sum(p["safetyStock"] for p in product_items),
+                    "leadTimeDays": 3,
+                },
+                *cat_items,
+                *product_items,
+            ]
 
         return product_items
 

@@ -101,3 +101,25 @@ def get_demand_comovement(current_user: Dict[str, Any] = Depends(get_current_use
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/decision-tree")
+def get_decision_tree_induction(
+    max_depth: int = Query(3, ge=2, le=5, description="Maximum tree depth for induction"),
+    criterion: str = Query("gini", description="Splitting criterion: 'gini' or 'entropy'"),
+    target_variable: str = Query("stockout_risk", description="Target variable: 'stockout_risk' or 'demand_velocity'"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Executes Decision Tree induction (CART / C4.5) over warehouse facts."""
+    try:
+        allowed_stores = _get_user_allowed_stores(current_user)
+        result = mining_engine.decision_tree_analysis(
+            max_depth=max_depth,
+            criterion=criterion,
+            target_variable=target_variable,
+            allowed_stores=allowed_stores,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

@@ -214,6 +214,10 @@ export const api = {
     return apiFetch(url);
   },
 
+  async getDecisionTree(maxDepth = 3, criterion = 'gini', targetVariable = 'stockout_risk') {
+    return apiFetch(`/mining/decision-tree?max_depth=${maxDepth}&criterion=${criterion}&target_variable=${targetVariable}`);
+  },
+
   // --- Admin Governance API ---
   async adminListUsers() {
     return apiFetch('/admin/users');

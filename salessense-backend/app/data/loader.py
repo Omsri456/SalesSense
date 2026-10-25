@@ -38,7 +38,10 @@ def load_series_data(
         if store_id:
             query["store_id"] = store_id
         if product_id:
-            query["product_id"] = product_id
+            if product_id.startswith("cat:"):
+                query["category"] = product_id.split("cat:", 1)[1]
+            else:
+                query["product_id"] = product_id
 
         count = col.count_documents(query)
         if count > 0:
@@ -57,8 +60,12 @@ def load_series_data(
             df = pd.read_csv(cache_path)
             if store_id and "store_id" in df.columns:
                 df = df[df["store_id"] == store_id]
-            if product_id and "product_id" in df.columns:
-                df = df[df["product_id"] == product_id]
+            if product_id:
+                if product_id.startswith("cat:") and "category" in df.columns:
+                    cat_name = product_id.split("cat:", 1)[1]
+                    df = df[df["category"].str.lower() == cat_name.lower()]
+                elif "product_id" in df.columns:
+                    df = df[df["product_id"] == product_id]
             return df
         except Exception as e:
             logger.warning("Error reading cache CSV at %s: %s", cache_path, e)

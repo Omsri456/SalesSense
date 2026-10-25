@@ -118,6 +118,12 @@ export default function DataWarehouseMining() {
   const [comovementResult, setComovementResult] = useState(null)
   const [anomalyResult, setAnomalyResult] = useState(null)
   const [basketResult, setBasketResult] = useState(null)
+  const [treeResult, setTreeResult] = useState(null)
+
+  // Decision Tree Parameters
+  const [treeDepth, setTreeDepth] = useState(3)
+  const [treeCriterion, setTreeCriterion] = useState('gini')
+  const [treeTarget, setTreeTarget] = useState('stockout_risk')
 
   // Initial Data Load
   useEffect(() => {
@@ -264,14 +270,102 @@ export default function DataWarehouseMining() {
     }
   }
 
+  const loadMiningTree = async () => {
+    try {
+      setLoading(true)
+      const res = await api.getDecisionTree(treeDepth, treeCriterion, treeTarget)
+      setTreeResult(res)
+      setError(null)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (activeSection === 'mining') {
       if (miningTab === 'clusters' && !clusterResult) loadMiningClusters()
       if (miningTab === 'comovement' && !comovementResult) loadMiningComovement()
       if (miningTab === 'anomalies' && !anomalyResult) loadMiningAnomalies()
       if (miningTab === 'apriori' && !basketResult) loadMiningBasket()
+      if (miningTab === 'decisiontree' && !treeResult) loadMiningTree()
     }
   }, [activeSection, miningTab])
+
+  // Recursive Decision Tree Node Renderer
+  const renderDecisionTreeNode = (node, branchLabel = null) => {
+    if (!node) return null
+    const isLeaf = node.is_leaf
+    const isSuccess = node.predicted_class?.includes('Normal') || node.predicted_class?.includes('High')
+    const isWarning = node.predicted_class?.includes('Moderate') || node.predicted_class?.includes('Standard')
+    const badgeColor = isSuccess
+      ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
+      : isWarning
+      ? 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/30'
+      : 'text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/30'
+
+    return (
+      <div className="flex flex-col items-center" key={node.node_id}>
+        {branchLabel && (
+          <div className="mb-2 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-300 border border-slate-200 dark:border-white/10 shadow-xs">
+            {branchLabel}
+          </div>
+        )}
+        <div className={`w-52 rounded-xl border p-3 shadow-xs transition hover:shadow-md ${
+          isLeaf ? `${badgeColor} border-2` : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10'
+        }`}>
+          {!isLeaf ? (
+            <div>
+              <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-white/5 text-[10px] font-mono">
+                <span className="font-bold text-slate-400">Node #{node.node_id}</span>
+                <span className="text-slate-500">{node.criterion}: {node.impurity}</span>
+              </div>
+              <div className="mt-2 font-mono text-xs font-bold text-primary">
+                {node.feature} &le; {node.threshold}
+              </div>
+              <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500 font-mono">
+                <span>N = {node.samples}</span>
+                <span className="truncate max-w-[100px] text-slate-400">{node.predicted_class?.split('/')[0]}</span>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/50 dark:border-white/10 text-[10px] font-mono">
+                <span className="font-bold text-slate-500">Leaf #{node.node_id}</span>
+                <span className="font-bold font-mono">{(node.confidence * 100).toFixed(0)}% Conf</span>
+              </div>
+              <div className="mt-2 font-sans font-bold text-xs">
+                {node.predicted_class}
+              </div>
+              <div className="mt-1 text-[10px] text-slate-500 font-mono">
+                Samples: {node.samples}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {!isLeaf && (node.left || node.right) && (
+          <div className="flex flex-col items-center w-full">
+            <div className="w-px h-4 bg-slate-300 dark:bg-slate-700" />
+            <div className="flex justify-between gap-6 mt-1 w-full">
+              {node.left && (
+                <div className="flex-1 flex justify-center">
+                  {renderDecisionTreeNode(node.left, `True (≤ ${node.threshold})`)}
+                </div>
+              )}
+              {node.right && (
+                <div className="flex-1 flex justify-center">
+                  {renderDecisionTreeNode(node.right, `False (> ${node.threshold})`)}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
 
   // Export OLAP results to CSV
   const handleExportCSV = () => {
@@ -1217,6 +1311,7 @@ export default function DataWarehouseMining() {
                   { id: 'comovement', label: '2. Demand Co-Movement Matrix' },
                   { id: 'anomalies', label: '3. Rolling Seasonal Anomalies' },
                   { id: 'apriori', label: '4. Market Basket (Apriori)' },
+                  { id: 'decisiontree', label: '5. Decision Tree Induction' },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -1247,9 +1342,9 @@ export default function DataWarehouseMining() {
                 <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-3">
                   Algorithm Tuning Parameters
                 </p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
                   <div>
-                    <label className="block text-[11px] text-slate-500 mb-1">K-Means Clusters (k)</label>
+                    <label className="block text-[11px] text-slate-500 mb-1">K-Means Clusters</label>
                     <input
                       type="number"
                       min={2}
@@ -1260,7 +1355,7 @@ export default function DataWarehouseMining() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-slate-500 mb-1">Anomaly Z-Threshold</label>
+                    <label className="block text-[11px] text-slate-500 mb-1">Anomaly Z-Score</label>
                     <input
                       type="number"
                       step={0.1}
@@ -1272,7 +1367,7 @@ export default function DataWarehouseMining() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-slate-500 mb-1">Rolling Window Days</label>
+                    <label className="block text-[11px] text-slate-500 mb-1">Rolling Window</label>
                     <input
                       type="number"
                       min={3}
@@ -1283,7 +1378,7 @@ export default function DataWarehouseMining() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-slate-500 mb-1">Apriori Min Support</label>
+                    <label className="block text-[11px] text-slate-500 mb-1">Apriori Support</label>
                     <input
                       type="number"
                       step={0.01}
@@ -1294,6 +1389,39 @@ export default function DataWarehouseMining() {
                       className="w-full rounded border border-slate-200 bg-white p-1.5 dark:border-white/10 dark:bg-slate-900"
                     />
                   </div>
+                  <div>
+                    <label className="block text-[11px] text-slate-500 mb-1">Tree Max Depth</label>
+                    <input
+                      type="number"
+                      min={2}
+                      max={5}
+                      value={treeDepth}
+                      onChange={(e) => setTreeDepth(Number(e.target.value))}
+                      className="w-full rounded border border-slate-200 bg-white p-1.5 dark:border-white/10 dark:bg-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-slate-500 mb-1">Tree Criterion</label>
+                    <select
+                      value={treeCriterion}
+                      onChange={(e) => setTreeCriterion(e.target.value)}
+                      className="w-full rounded border border-slate-200 bg-white p-1.5 dark:border-white/10 dark:bg-slate-900"
+                    >
+                      <option value="gini">Gini (CART)</option>
+                      <option value="entropy">Entropy (C4.5)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-slate-500 mb-1">Tree Target</label>
+                    <select
+                      value={treeTarget}
+                      onChange={(e) => setTreeTarget(e.target.value)}
+                      className="w-full rounded border border-slate-200 bg-white p-1.5 dark:border-white/10 dark:bg-slate-900"
+                    >
+                      <option value="stockout_risk">Stockout Risk</option>
+                      <option value="demand_velocity">Demand Tier</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="mt-3 flex justify-end">
                   <button
@@ -1302,6 +1430,7 @@ export default function DataWarehouseMining() {
                       if (miningTab === 'comovement') loadMiningComovement()
                       if (miningTab === 'anomalies') loadMiningAnomalies()
                       if (miningTab === 'apriori') loadMiningBasket()
+                      if (miningTab === 'decisiontree') loadMiningTree()
                     }}
                     disabled={loading}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-primary/90 disabled:opacity-50 transition"
@@ -1781,6 +1910,180 @@ export default function DataWarehouseMining() {
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
                     Mine Association Rules
+                  </button>
+                </div>
+              )
+            )}
+
+            {/* TAB 5: DECISION TREE INDUCTION (CART / C4.5) */}
+            {miningTab === 'decisiontree' && (
+              loading ? (
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm dark:border-white/10 dark:bg-white/5">
+                  <RefreshCw className="h-7 w-7 animate-spin text-primary mb-3" />
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                    Inducing Decision Tree Classifier...
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Evaluating recursive splits over warehouse facts ({treeCriterion.toUpperCase()} criterion, max depth {treeDepth}).
+                  </p>
+                </div>
+              ) : treeResult ? (
+                <div className="space-y-6">
+                  {/* Model Performance & Metadata Card */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/5">
+                      <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">Classification Accuracy</div>
+                      <div className="mt-1 text-2xl font-bold font-mono text-primary">
+                        {(treeResult.model_accuracy * 100).toFixed(1)}%
+                      </div>
+                      <div className="mt-1 text-[11px] text-slate-500">Training sample resubstitution</div>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/5">
+                      <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">Warehouse Records</div>
+                      <div className="mt-1 text-2xl font-bold font-mono text-slate-800 dark:text-slate-200">
+                        {treeResult.total_records?.toLocaleString()}
+                      </div>
+                      <div className="mt-1 text-[11px] text-slate-500">FactDailySales observations</div>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/5">
+                      <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">Algorithm & Criterion</div>
+                      <div className="mt-1 text-sm font-bold font-mono text-slate-800 dark:text-slate-200 truncate">
+                        CART ({treeResult.criterion?.toUpperCase()})
+                      </div>
+                      <div className="mt-1 text-[11px] text-slate-500">Max Depth: {treeResult.max_depth} levels</div>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/5">
+                      <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">Extracted Rules</div>
+                      <div className="mt-1 text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                        {treeResult.rules?.length || 0}
+                      </div>
+                      <div className="mt-1 text-[11px] text-slate-500">Disjunctive normal form paths</div>
+                    </div>
+                  </div>
+
+                  {/* Visual Decision Tree Hierarchy */}
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-white/5 overflow-x-auto">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-3 border-b border-slate-100 dark:border-white/10">
+                      <div>
+                        <h4 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>Visual Decision Tree Flowchart</span>
+                          <span className="rounded bg-primary/10 px-2 py-0.5 text-[10px] font-mono font-bold text-primary">
+                            Target: {treeResult.target_description}
+                          </span>
+                        </h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          Hierarchical decision boundaries induced across warehouse attributes. Left branch satisfies condition; right branch violates condition.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        {treeResult.classes?.map((cls, idx) => (
+                          <div key={idx} className="flex items-center gap-1.5 text-[11px] font-mono">
+                            <span className={`h-2.5 w-2.5 rounded-full ${idx === 0 ? 'bg-emerald-500' : idx === 1 ? 'bg-amber-500' : 'bg-rose-500'}`} />
+                            <span className="text-slate-600 dark:text-slate-300">{cls}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="min-w-[800px] flex justify-center py-4 overflow-x-auto">
+                      {renderDecisionTreeNode(treeResult.tree_hierarchy)}
+                    </div>
+                  </div>
+
+                  {/* Section 2: Gini Feature Importance & Extracted Rules */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Gini Feature Importances */}
+                    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-white/5">
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-1">
+                        Feature Importance Ranking
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+                        Normalized Gini reduction contributions across tree splits.
+                      </p>
+                      <div className="space-y-3">
+                        {treeResult.feature_importances?.map((fi, idx) => (
+                          <div key={idx} className="text-xs">
+                            <div className="flex justify-between font-mono mb-1">
+                              <span className="text-slate-700 dark:text-slate-300 font-medium">{fi.feature}</span>
+                              <span className="text-primary font-bold">{(fi.importance * 100).toFixed(1)}%</span>
+                            </div>
+                            <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-white/10 overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-primary"
+                                style={{ width: `${Math.max(4, fi.importance * 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Extracted Production Rules */}
+                    <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-white/5">
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-1">
+                        Extracted IF-THEN Classification Rules (Knowledge Induction)
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+                        Deterministic classification rules extracted from root-to-leaf paths with empirical support and confidence metrics.
+                      </p>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50 text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                            <tr>
+                              <th className="py-2.5 px-3">Rule ID</th>
+                              <th className="py-2.5 px-3">IF Antecedent Conditions</th>
+                              <th className="py-2.5 px-3">THEN Class</th>
+                              <th className="py-2.5 px-3 font-mono text-right">Confidence</th>
+                              <th className="py-2.5 px-3 font-mono text-right">Support</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-mono">
+                            {treeResult.rules?.map((r, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition">
+                                <td className="py-2.5 px-3 font-bold text-slate-400">{r.rule_id}</td>
+                                <td className="py-2.5 px-3 font-sans text-slate-700 dark:text-slate-300">
+                                  {r.conditions?.length ? r.conditions.join(' AND ') : 'True (Root)'}
+                                </td>
+                                <td className="py-2.5 px-3 font-sans font-semibold">
+                                  <span className={`px-2 py-0.5 rounded text-[11px] ${
+                                    r.predicted_class?.includes('Normal') || r.predicted_class?.includes('High')
+                                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                      : r.predicted_class?.includes('Moderate') || r.predicted_class?.includes('Standard')
+                                      ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                                      : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                                  }`}>
+                                    {r.predicted_class}
+                                  </span>
+                                </td>
+                                <td className="py-2.5 px-3 font-mono text-right font-bold text-slate-800 dark:text-slate-200">
+                                  {(r.confidence * 100).toFixed(0)}%
+                                </td>
+                                <td className="py-2.5 px-3 font-mono text-right text-slate-500">
+                                  {(r.support * 100).toFixed(1)}%
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-12 text-center dark:border-white/10 dark:bg-white/5">
+                  <Play className="h-8 w-8 text-slate-400 mb-3" />
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                    No Decision Tree Induced
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 max-w-md">
+                    {error ? `Calculation paused: ${error}` : 'Run the CART Decision Tree induction algorithm over the warehouse facts to construct the visual decision hierarchy.'}
+                  </p>
+                  <button
+                    onClick={loadMiningTree}
+                    className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary/90 transition"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Induce Decision Tree
                   </button>
                 </div>
               )
