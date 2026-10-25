@@ -51,23 +51,35 @@ The architecture and data schema are directly aligned with the retail research p
 
 1. **Enterprise Security & True RBAC**:
    - Distinct roles: `Admin`, `Retailer`, `ML Engineer`.
-   - Store Data Scoping: Retailers only see data for their assigned stores. Horizontal privilege escalation is strictly neutralized on the server side.
-   - Comprehensive administrative audit logging.
+   - Store Data Scoping: Retailers only see data for their assigned stores. Horizontal privilege escalation is strictly neutralized on the server side (HTTP 403).
+   - Dedicated administrative audit logging and scoped analytics.
 
 2. **Research Alignment & Latent Demand Recovery**:
-   - Direct support for FreshRetailNet-50K factors: `stock_hour6_22_cnt`, `management_group_id`, category hierarchy, and weather variables.
-   - Reconstructs unconstrained latent demand when stockouts occur, ensuring models are trained on true customer demand rather than truncated sales.
+   - Built on authentic FreshRetailNet-50K parquet splits (`data/train.parquet`, `data/eval.parquet`) with SHA-256 provenance tracking.
+   - Direct support for retail factors: `stock_hour6_22_cnt`, `management_group_id`, category hierarchy, and `DimWeather` foreign keys.
+   - Reconstructs unconstrained latent demand when stockouts occur, showing the lost sales gap in color-blind safe charts.
 
-3. **Kimball Star Schema Data Warehouse & OLAP**:
-   - `FactDailySales` joined with `DimStore`, `DimProduct`, `DimDate`, and `DimStockout`.
+3. **Perishable Inventory Intelligence**:
+   - Perishable reorder ceiling: `suggested_qty = max(0, min(ceil(rop_need), floor(perishable_ceiling)))`.
+   - Prevents over-ordering beyond shelf life limits (`max_units_cover = shelf_life_days * daily_velocity`).
+   - Visual Days of Cover bullet gauges (cover vs. lead time marker vs. shelf life hazard) and waste risk cost ($) tracking.
+
+4. **Kimball Star Schema Data Warehouse & OLAP**:
+   - `FactDailySales` joined with `DimStore`, `DimProduct`, `DimDate`, `DimStockout`, and `DimWeather`.
    - High-speed **Rollup**, **Drill-Down**, **Slice**, **Dice**, and **2D Pivot Cross-Tabulation** APIs.
+   - Dynamic Kimball hierarchy level switcher (SKU -> Subcategory -> Category -> Management Group) with constituent SKU revenue drilldowns.
 
-4. **Retail Data Mining Suite**:
+5. **Advanced Visualizations & Compare Mode**:
+   - Color-blind safe palette (`#0d9488` actuals, `#2563eb` forecasts, `#e11d48` latent demand gap).
+   - Operating hour (06:00–22:00) × Weekday (Mon–Sun) demand & stockout hazard heatmaps.
+   - Multi-Product Growth Comparison mode with normalized scale (`Index = 100`) for cross-catalog velocity comparison.
+
+6. **Retail Data Mining Suite**:
    - **Market Basket Analysis (Apriori)**: Generates frequent itemsets and association rules with Support, Confidence, Lift, and Conviction.
    - **K-Means Demand Regime Clustering**: Groups store-SKU series into 4 actionable operational archetypes (Fast Mover, Volatile Surge, Intermittent Lumpy, Steady Standard).
    - **Rolling Anomaly Detection**: 7-day seasonal baseline flags sales spikes and stockout-induced demand collapses with root-cause attribution.
 
-5. **Multi-Model Tournament Engine**:
+7. **Multi-Model Tournament Engine**:
    - Chronological 80/20 holdouts evaluating SARIMA, Prophet, and BiLSTM.
    - Auto-selects champion model based on lowest holdout wMAPE and surfaces $R^2$, RMSE, and MAE.
 
@@ -88,15 +100,15 @@ salessense-frontend_2/
 │   └── RESEARCH_ALIGNMENT.md            # FreshRetailNet-50K paper formulation
 ├── salessense-backend/                  # FastAPI Python backend
 │   ├── app/
-│   │   ├── api/                         # REST API routes (auth, admin, dw, mining, forecast)
+│   │   ├── api/                         # REST API routes (auth, admin, dw, mining, forecast, dashboard, inventory)
 │   │   ├── db/                          # Mongo client & Pydantic schemas
 │   │   ├── dw/                          # Kimball dimensional model engine
 │   │   ├── services/                    # Censored demand, OLAP, mining, forecasting services
 │   │   └── models/                      # SARIMA, Prophet, LSTM forecast models
 │   ├── scripts/                         # Dataset generation & ingestion scripts
-│   └── tests/                           # 20 automated unit and integration tests
-├── src/                                 # React frontend
-│   ├── components/                      # UI components, charts, and tables
+│   └── tests/                           # 34 automated unit and integration tests
+├── src/                                 # React 19 frontend
+│   ├── components/                      # UI components, bullet charts, sparklines, heatmaps, hierarchy switcher
 │   ├── pages/                           # Dashboard, DWM & OLAP, Forecast, Models, Inventory, Upload
 │   ├── routes/                          # Protected routing with role verification
 │   └── services/                        # Authenticated API clients
@@ -137,4 +149,4 @@ Open `http://localhost:5173` in your browser.
 cd salessense-backend
 python -m pytest tests/ -v
 ```
-**Test Results: 20 passed tests covering RBAC, store scoping, censored demand recovery, star schema building, OLAP operations, and data mining algorithms.**
+**Test Results: 34 passed tests covering authentic parquet pipeline, RBAC, store scoping, censored demand recovery, star schema building, OLAP operations, data mining algorithms, perishable inventory ceilings, and Kimball hierarchy aggregation.**
