@@ -31,6 +31,7 @@ from app.dw.models import (
     DimProduct,
     DimStockout,
     DimPromotion,
+    DimWeather,
     FactDailySales,
     FactForecast,
     EtlRun,
@@ -49,6 +50,7 @@ class DimensionalModelEngine:
         self._dim_date: Optional[pd.DataFrame] = None
         self._dim_stockout: Optional[pd.DataFrame] = None
         self._dim_promotion: Optional[pd.DataFrame] = None
+        self._dim_weather: Optional[pd.DataFrame] = None
         self._fact_daily_sales: Optional[pd.DataFrame] = None
         self._facts_view: Optional[pd.DataFrame] = None
         self._is_initialized = False
@@ -73,6 +75,10 @@ class DimensionalModelEngine:
                     self._dim_date = pd.read_sql_table("dim_date", con=engine)
                     self._dim_stockout = pd.read_sql_table("dim_stockout", con=engine)
                     self._dim_promotion = pd.read_sql_table("dim_promotion", con=engine)
+                    try:
+                        self._dim_weather = pd.read_sql_table("dim_weather", con=engine)
+                    except Exception:
+                        self._dim_weather = None
                     self._fact_daily_sales = pd.read_sql_table("fact_daily_sales", con=engine)
                     self._rebuild_facts_view()
                     logger.info("Successfully reloaded warehouse views from persistent database.")
@@ -105,6 +111,13 @@ class DimensionalModelEngine:
             on="stockout_key",
             suffixes=("", "_stockout")
         )
+        if self._dim_weather is not None and not self._dim_weather.empty and "weather_key" in self._fact_daily_sales.columns:
+            view = view.merge(
+                self._dim_weather[["weather_key", "weather_condition"]],
+                on="weather_key",
+                how="left",
+                suffixes=("", "_weather")
+            )
         self._facts_view = view
 
     def build_warehouse(self, force_rebuild: bool = False) -> Dict[str, Any]:
@@ -147,25 +160,12 @@ class DimensionalModelEngine:
         }).reset_index()
 
         store_records = []
-        for _, row in store_group.iterrows():
+        for idx, row in store_group.iterrows():
             sid = str(row["store_id"]).strip()
             cid = str(row["city_id"]).strip() if pd.notna(row.get("city_id")) else f"CITY_{sid}"
-            if "01" in sid:
-                region = "Northern Metro"
-                tier = "Tier-1 Flagship"
-                store_name = "Downtown Fresh Flagship"
-            elif "02" in sid:
-                region = "Southern Bay"
-                tier = "Tier-2 Standard"
-                store_name = "Harbor Bay Outlet"
-            elif "03" in sid:
-                region = "Eastern Metro"
-                tier = "Tier-1 Flagship"
-                store_name = "Uptown Metro Market"
-            else:
-                region = "Metro Region"
-                tier = "Tier-2 Standard"
-                store_name = f"Store {sid}"
+            region = f"Region-{cid}"
+            tier = "Tier-1 Flagship" if (idx % 2 == 0) else "Tier-2 Standard"
+            store_name = f"Store {sid}" if sid.startswith("STORE_") else f"Retail Store {sid}"
 
             store_records.append({
                 "store_id": sid,
@@ -179,7 +179,7 @@ class DimensionalModelEngine:
 
         # B. DimProduct (Completely dynamic from active data)
         prod_agg = {
-            "category": "first" if "category" in df.columns else lambda _: "Produce",
+            "category": "first" if "category" in df.columns else lambda _: "General",
             "unit_price": "mean" if "unit_price" in df.columns else lambda _: 5.0,
         }
         if "product_name" in df.columns:
@@ -190,33 +190,26 @@ class DimensionalModelEngine:
 
         prod_group = df.groupby("product_id").agg(prod_agg).reset_index()
 
-        known_sku_names = {
-            "SKU-ORG-01": "Organic Bananas",
-            "SKU-ORG-02": "Honeycrisp Apples",
-            "SKU-ORG-03": "Baby Spinach",
-            "SKU-BAK-04": "Artisan Sourdough",
-            "SKU-BAK-05": "Whole Grain Bagels",
-            "SKU-BAK-06": "Gluten-Free Brioche",
-            "SKU-BEV-09": "Cold Brew Coffee",
-            "SKU-BEV-10": "Sparkling Mineral Water",
-            "SKU-BEV-11": "Organic Kombucha",
-            "SKU-PAN-12": "Extra Virgin Olive Oil",
-            "SKU-PAN-13": "Raw Almond Butter",
-            "SKU-PAN-14": "San Marzano Pasta Sauce",
-            "SKU-MEA-02": "Grass-Fed Ground Beef",
-            "SKU-MEA-15": "Free-Range Chicken Breast",
-            "SKU-MEA-16": "Wild Alaskan Salmon",
-            "SKU-DAI-07": "Greek Whole Yogurt",
-            "SKU-DAI-17": "Organic Whole Milk",
-            "SKU-DAI-18": "Aged Cheddar Cheese",
-        }
+        # Load shelf life mapping from config
+        shelf_life_path = os.path.join(os.path.dirname(__file__), "..", "config", "shelf_life.json")
+        shelf_map = {}
+        default_shelf = 14
+        if os.path.exists(shelf_life_path):
+            try:
+                with open(shelf_life_path, "r", encoding="utf-8") as f:
+                    cdata = json.load(f)
+                    shelf_map = cdata.get("category_shelf_life_days", {})
+                    default_shelf = cdata.get("default_shelf_life_days", 14)
+            except Exception:
+                pass
 
         prod_records = []
         for _, row in prod_group.iterrows():
             pid = str(row["product_id"]).strip()
-            pname = str(row["product_name"]).strip() if "product_name" in row and pd.notna(row["product_name"]) else known_sku_names.get(pid, f"Product {pid}")
-            cat = str(row.get("category", "Produce"))
+            cat = str(row.get("category", "General"))
+            pname = str(row["product_name"]).strip() if "product_name" in row and pd.notna(row["product_name"]) else f"{cat} · Item {pid}"
             price = round(float(row.get("unit_price", 5.0)), 2)
+            shelf_days = int(shelf_map.get(cat, default_shelf))
 
             prod_records.append({
                 "product_id": pid,
@@ -227,7 +220,8 @@ class DimensionalModelEngine:
                 "second_category_id": int(row.get("second_category_id", 1001)) if pd.notna(row.get("second_category_id")) else 1001,
                 "third_category_id": int(row.get("third_category_id", 10001)) if pd.notna(row.get("third_category_id")) else 10001,
                 "unit_price": price,
-                "unit_cost": price,
+                "unit_cost": round(price * 0.65, 2),
+                "shelf_life_days": shelf_days,
             })
         dim_product_df = pd.DataFrame(prod_records)
         dim_product_df["product_key"] = np.arange(1, len(dim_product_df) + 1)
@@ -277,6 +271,31 @@ class DimensionalModelEngine:
             {"promotion_key": 3, "promotion_code": "PROMO_HOLIDAY", "promotion_name": "Holiday Clearance", "discount_rate": 0.25, "activity_flag": 1, "is_holiday": 1},
         ])
 
+        # F. DimWeather (Store x Date contextual weather observations)
+        weather_records = []
+        weather_group = df.groupby(["store_id", "date_key", "date_str"], as_index=False).agg({
+            "avg_temperature": "mean" if "avg_temperature" in df.columns else lambda _: 20.0,
+            "avg_humidity": "mean" if "avg_humidity" in df.columns else lambda _: 65.0,
+            "precpt": "max" if "precpt" in df.columns else lambda _: 0.0,
+            "avg_wind_level": "mean" if "avg_wind_level" in df.columns else lambda _: 2.0,
+        })
+        for idx, wrow in weather_group.iterrows():
+            precpt_val = round(float(wrow["precpt"]), 2)
+            temp_val = round(float(wrow["avg_temperature"]), 1)
+            cond = "Rainy" if precpt_val > 0.5 else ("Sunny/Warm" if temp_val > 22.0 else "Clear/Mild")
+            weather_records.append({
+                "weather_key": idx + 1,
+                "store_id": str(wrow["store_id"]),
+                "date_key": int(wrow["date_key"]),
+                "date_str": str(wrow["date_str"]),
+                "avg_temperature": temp_val,
+                "avg_humidity": round(float(wrow["avg_humidity"]), 1),
+                "precpt": precpt_val,
+                "avg_wind_level": round(float(wrow["avg_wind_level"]), 1),
+                "weather_condition": cond,
+            })
+        dim_weather_df = pd.DataFrame(weather_records)
+
         # 4. FactDailySales Aggregation at Grain (Store x Product x Day)
         fact_agg_dict = {
             "sale_amount": "sum",
@@ -299,6 +318,8 @@ class DimensionalModelEngine:
         fact_daily = fact_daily.merge(dim_store_df[["store_id", "store_key"]], on="store_id", how="left")
         fact_daily = fact_daily.merge(dim_product_df[["product_id", "product_key"]], on="product_id", how="left")
         fact_daily = fact_daily.merge(dim_stockout_df[["stock_hour6_22_cnt", "stockout_key"]], on="stock_hour6_22_cnt", how="left")
+        fact_daily = fact_daily.merge(dim_weather_df[["store_id", "date_key", "weather_key"]], on=["store_id", "date_key"], how="left")
+        fact_daily["weather_key"] = fact_daily["weather_key"].fillna(1).astype(int)
 
         # Referential Integrity Verification
         if fact_daily["store_key"].isna().any():
@@ -325,6 +346,7 @@ class DimensionalModelEngine:
             try:
                 # Clear existing facts and dimensions for idempotent clean rebuild
                 session.execute(text("DELETE FROM fact_daily_sales;"))
+                session.execute(text("DELETE FROM dim_weather;"))
                 session.execute(text("DELETE FROM dim_store;"))
                 session.execute(text("DELETE FROM dim_product;"))
                 session.execute(text("DELETE FROM dim_date;"))
@@ -337,10 +359,11 @@ class DimensionalModelEngine:
                 session.bulk_insert_mappings(DimDate, dim_date_df.to_dict(orient="records"))
                 session.bulk_insert_mappings(DimStockout, dim_stockout_df.to_dict(orient="records"))
                 session.bulk_insert_mappings(DimPromotion, dim_promotion_df.to_dict(orient="records"))
+                session.bulk_insert_mappings(DimWeather, dim_weather_df.to_dict(orient="records"))
 
                 # Insert Facts
                 fact_records = fact_daily[[
-                    "fact_id", "store_key", "product_key", "date_key", "stockout_key", "promotion_key",
+                    "fact_id", "store_key", "product_key", "date_key", "stockout_key", "promotion_key", "weather_key",
                     "store_id", "product_id", "date_str", "observed_sales", "gross_revenue", "unit_price",
                     "discount", "estimated_latent_demand", "lost_sales_estimate", "lost_revenue_estimate",
                     "recovery_confidence", "estimation_method", "stock_hour6_22_cnt", "is_stockout_affected",
@@ -399,6 +422,7 @@ class DimensionalModelEngine:
         self._dim_date = dim_date_df
         self._dim_stockout = dim_stockout_df
         self._dim_promotion = dim_promotion_df
+        self._dim_weather = dim_weather_df
         self._fact_daily_sales = fact_daily
         self._rebuild_facts_view()
 
@@ -427,6 +451,7 @@ class DimensionalModelEngine:
                 "DimDate": int(len(self._dim_date)),
                 "DimStockout": int(len(self._dim_stockout)),
                 "DimPromotion": int(len(self._dim_promotion)) if self._dim_promotion is not None else 3,
+                "DimWeather": int(len(self._dim_weather)) if self._dim_weather is not None else 0,
             },
             "date_coverage": {
                 "start": str(self._dim_date["full_date"].min()),

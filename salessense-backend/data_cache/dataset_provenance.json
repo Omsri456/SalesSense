@@ -1,7 +1,7 @@
 {
   "source_name": "freshretailnet_subset.csv",
   "dataset_mode": "synthetic_benchmark",
-  "provenance_notes": "Synthetic FreshRetailNet-50K compliant benchmark series generated with seed 42 across 2 stores, 6 SKUs, 365 days (275940 rows) for stockout-censored demand testing.",
+  "provenance_notes": "Synthetic FreshRetailNet-50K compliant benchmark series generated with seed 42 across 3 stores (STORE_01, STORE_02, STORE_03), 18 SKUs across 6 categories, 365 days (275940 rows) for stockout-censored demand testing. Authentic FreshRetailNet-50K ingestion supported via scripts/ingest_dataset.py and documented in docs/REAL_DATA_SETUP.md.",
   "ingested_at": "2026-10-21T00:05:30.576577+00:00",
   "raw_rows": 275940,
   "valid_rows": 275940,

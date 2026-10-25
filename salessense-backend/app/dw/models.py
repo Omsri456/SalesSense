@@ -78,6 +78,7 @@ class DimProduct(Base):
     third_category_id = Column(Integer, nullable=True)
     unit_price = Column(Float, nullable=False, default=1.0)
     unit_cost = Column(Float, nullable=True)
+    shelf_life_days = Column(Integer, nullable=True, default=7)
 
     # Relationships
     daily_sales = relationship("FactDailySales", back_populates="dim_product")
@@ -112,6 +113,24 @@ class DimPromotion(Base):
     daily_sales = relationship("FactDailySales", back_populates="dim_promotion")
 
 
+class DimWeather(Base):
+    __tablename__ = "dim_weather"
+
+    weather_key = Column(Integer, primary_key=True, autoincrement=True)
+    date_key = Column(Integer, ForeignKey("dim_date.date_key"), nullable=False, index=True)
+    store_id = Column(String(50), nullable=True, index=True)
+    date_str = Column(String(10), nullable=True)
+    avg_temperature = Column(Float, nullable=True)
+    avg_humidity = Column(Float, nullable=True)
+    precpt = Column(Float, nullable=True)
+    avg_wind_level = Column(Float, nullable=True)
+    weather_condition = Column(String(50), nullable=True)
+
+    # Relationships
+    dim_date = relationship("DimDate")
+    daily_sales = relationship("FactDailySales", back_populates="dim_weather")
+
+
 class FactDailySales(Base):
     """
     Grain: One row per (store, product, date)
@@ -127,6 +146,7 @@ class FactDailySales(Base):
     date_key = Column(Integer, ForeignKey("dim_date.date_key"), nullable=False, index=True)
     stockout_key = Column(Integer, ForeignKey("dim_stockout.stockout_key"), nullable=False, index=True)
     promotion_key = Column(Integer, ForeignKey("dim_promotion.promotion_key"), nullable=True)
+    weather_key = Column(Integer, ForeignKey("dim_weather.weather_key"), nullable=True)
 
     # Natural IDs for trace and fast direct querying
     store_id = Column(String(50), nullable=False, index=True)
@@ -160,6 +180,7 @@ class FactDailySales(Base):
     dim_date = relationship("DimDate", back_populates="daily_sales")
     dim_stockout = relationship("DimStockout", back_populates="daily_sales")
     dim_promotion = relationship("DimPromotion", back_populates="daily_sales")
+    dim_weather = relationship("DimWeather", back_populates="daily_sales")
 
     __table_args__ = (
         UniqueConstraint("store_key", "product_key", "date_key", name="uq_store_product_date"),

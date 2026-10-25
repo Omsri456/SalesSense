@@ -32,6 +32,13 @@ STORE_CATALOG = [
         "store_name": "Harbor Bay Outlet (STORE_02)",
         "is_active": True,
     },
+    {
+        "store_id": "STORE_03",
+        "city_id": "CITY_EAST",
+        "region_name": "Eastern Metro",
+        "store_name": "Uptown Metro Market (STORE_03)",
+        "is_active": True,
+    },
 ]
 
 

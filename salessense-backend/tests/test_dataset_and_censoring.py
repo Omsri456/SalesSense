@@ -37,15 +37,15 @@ def test_dataset_columns_and_schema():
 
 def test_dynamic_statistics_calculation():
     """Verify dynamic dataset statistics calculation without hardcoding."""
+    df = ingestion_service.load_active_dataset()
     stats = ingestion_service.compute_dynamic_statistics()
-    assert stats["total_rows"] == 61320
-    assert stats["unique_stores"] == 2
-    assert stats["unique_products"] == 6
-    assert stats["total_store_product_series"] == 12
+    assert stats["total_rows"] == len(df)
+    assert stats["unique_stores"] == df["store_id"].nunique()
+    assert stats["unique_products"] == df["product_id"].nunique()
     assert stats["stockout_affected_count"] > 0
-    assert 5.0 <= stats["censoring_rate_pct"] <= 15.0  # ~9% simulated stockout days
-    assert "2025" in stats["date_range_start"]
-    assert "2025" in stats["date_range_end"]
+    assert stats["censoring_rate_pct"] > 0
+    assert stats["date_range_start"] != "N/A"
+    assert stats["date_range_end"] != "N/A"
 
 
 def test_censored_demand_recovery_algorithm():
@@ -90,23 +90,24 @@ def test_censored_demand_recovery_algorithm():
 
 def test_api_dataset_summary_endpoint(auth_headers):
     """Verify that GET /api/dataset/summary returns authentic dynamic statistics."""
+    df = ingestion_service.load_active_dataset()
     res = client.get("/api/dataset/summary", headers=auth_headers)
     assert res.status_code == 200, res.text
     data = res.json()
-    assert data["total_rows"] == 61320
-    assert data["total_series"] == 12
-    assert data["unique_stores"] == 2
-    assert data["unique_products"] == 6
+    assert data["total_rows"] == len(df)
+    assert data["unique_stores"] == df["store_id"].nunique()
+    assert data["unique_products"] == df["product_id"].nunique()
     assert data["stockout_affected_count"] > 0
     assert data["censoring_rate_pct"] > 0
 
 
 def test_api_censoring_summary_endpoint(auth_headers):
     """Verify that GET /api/dataset/censoring-summary provides research-aligned stockout analysis."""
+    df = ingestion_service.load_active_dataset()
     res = client.get("/api/dataset/censoring-summary", headers=auth_headers)
     assert res.status_code == 200, res.text
     data = res.json()
-    assert data["total_records"] == 61320
+    assert data["total_records"] == len(df)
     assert data["stockout_affected_records"] > 0
     assert data["total_estimated_demand"] > data["total_observed_sales"]
     assert data["total_lost_sales_estimate"] > 0

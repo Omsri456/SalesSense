@@ -1,0 +1,21 @@
+{
+  "category_shelf_life_days": {
+    "Produce": 5,
+    "Fresh Produce": 5,
+    "Bakery": 4,
+    "Dairy": 7,
+    "Meat": 3,
+    "Fresh Meat": 3,
+    "Poultry": 3,
+    "Seafood": 2,
+    "Fish": 2,
+    "Beverages": 60,
+    "Drinks": 60,
+    "Pantry": 180,
+    "Snacks": 90,
+    "Frozen": 180,
+    "General": 30
+  },
+  "default_shelf_life_days": 14,
+  "perishable_threshold_days": 7
+}
