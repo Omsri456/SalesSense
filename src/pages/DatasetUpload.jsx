@@ -91,14 +91,35 @@ export default function DatasetUpload() {
           {/* Active Staging & Provenance Card */}
           {datasetSummary && (
             <div className="rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/10 via-sky-500/5 to-transparent p-5 dark:border-primary/30">
-              <div className="flex items-center gap-2">
-                <Database className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-bold uppercase tracking-wider text-primary">
-                  Active Staging Dataset & Provenance
-                </h3>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Database className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-primary">
+                    Active Staging Dataset & Provenance
+                  </h3>
+                </div>
+
+                {/* Dataset Mode Badge (Admin / ML Engineer view) */}
+                <span
+                  id="dataset-mode-badge"
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+                    datasetSummary.dataset_mode === 'authentic'
+                      ? 'bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 border border-emerald-500/30'
+                      : 'bg-amber-500/15 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-500/30'
+                  }`}
+                >
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      datasetSummary.dataset_mode === 'authentic' ? 'bg-emerald-500' : 'bg-amber-500'
+                    }`}
+                  />
+                  {datasetSummary.dataset_mode === 'authentic'
+                    ? 'Authentic FreshRetailNet-50K'
+                    : 'Synthetic benchmark'}
+                </span>
               </div>
 
-              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 text-xs font-mono">
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 text-xs font-mono">
                 <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-800">
                   <span className="text-[10px] text-slate-400 block uppercase">Total Rows</span>
                   <span className="text-base font-bold text-slate-900 dark:text-white">
@@ -108,25 +129,33 @@ export default function DatasetUpload() {
                 <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-800">
                   <span className="text-[10px] text-slate-400 block uppercase">Stockout Records</span>
                   <span className="text-base font-bold text-rose-600">
-                    {datasetSummary.stockout_records?.toLocaleString()}
+                    {(datasetSummary.stockout_affected_count ?? datasetSummary.stockout_records ?? 0).toLocaleString()}
                   </span>
                 </div>
                 <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-800">
                   <span className="text-[10px] text-slate-400 block uppercase">Date Window</span>
                   <span className="text-xs font-bold text-slate-900 dark:text-white">
-                    {datasetSummary.date_coverage?.start} → {datasetSummary.date_coverage?.end}
+                    {datasetSummary.date_range_start || datasetSummary.date_coverage?.start} →{' '}
+                    {datasetSummary.date_range_end || datasetSummary.date_coverage?.end}
                   </span>
                 </div>
                 <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-800">
-                  <span className="text-[10px] text-slate-400 block uppercase">Categories</span>
+                  <span className="text-[10px] text-slate-400 block uppercase">Catalog Scale</span>
                   <span className="text-base font-bold text-primary">
-                    {datasetSummary.categories?.length || 6}
+                    {datasetSummary.unique_products || datasetSummary.categories?.length || 36} SKUs · {datasetSummary.unique_stores || 5} Stores
                   </span>
                 </div>
               </div>
 
+              {datasetSummary.provenance_notes && (
+                <div className="mt-3 rounded-xl bg-white/60 p-2.5 text-[11px] text-slate-600 dark:bg-slate-800/60 dark:text-slate-400">
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">Provenance: </span>
+                  {datasetSummary.provenance_notes}
+                </div>
+              )}
+
               {datasetSummary.sha256_checksum && (
-                <div className="mt-3 flex items-center gap-2 rounded-xl bg-white/60 px-3 py-2 text-[11px] font-mono text-slate-600 dark:bg-slate-800/60 dark:text-slate-400">
+                <div className="mt-2 flex items-center gap-2 rounded-xl bg-white/60 px-3 py-2 text-[11px] font-mono text-slate-600 dark:bg-slate-800/60 dark:text-slate-400">
                   <Hash className="h-3.5 w-3.5 text-primary shrink-0" />
                   <span className="truncate">SHA-256 Provenance: {datasetSummary.sha256_checksum}</span>
                 </div>

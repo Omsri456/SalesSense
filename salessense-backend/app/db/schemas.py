@@ -87,6 +87,8 @@ class ProductItem(BaseModel):
 
 class DatasetSummary(BaseModel):
     dataset_name: str
+    dataset_mode: Optional[str] = "synthetic_benchmark"
+    provenance_notes: Optional[str] = ""
     total_series: int
     total_rows: int
     date_range_start: str

@@ -39,6 +39,8 @@ async def get_dataset_summary(current_user: Dict[str, Any] = Depends(get_current
     stats = ingestion_service.compute_dynamic_statistics()
     return DatasetSummary(
         dataset_name=stats["dataset_name"],
+        dataset_mode=stats.get("dataset_mode", "synthetic_benchmark"),
+        provenance_notes=stats.get("provenance_notes", ""),
         total_series=stats["total_store_product_series"],
         total_rows=stats["total_rows"],
         date_range_start=stats["date_range_start"],
