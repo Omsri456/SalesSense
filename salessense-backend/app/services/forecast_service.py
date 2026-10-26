@@ -197,7 +197,7 @@ class ForecastService:
             all_models=all_models,
             chartData=chart_points,
             forecast=forecast_points,
-            average_recovery_confidence=round(float(censoring_res.get("average_recovery_confidence", 1.0)), 2),
+            average_recovery_confidence=round(float(featured_df["recovery_confidence"].mean()), 2) if "recovery_confidence" in featured_df.columns else 1.0,
         )
 
         _CACHE[cache_key] = {"timestamp": now, "data": response}
