@@ -13,6 +13,7 @@ from app.api.routes_mining import router as mining_router
 from app.api.routes_inventory import router as inventory_router
 from app.api.routes_dashboard import router as dashboard_router
 from app.api.routes_feedback import router as feedback_router
+from app.api.routes_reports import router as reports_router
 
 
 
@@ -52,6 +53,7 @@ app.include_router(mining_router, prefix=settings.API_V1_STR)
 app.include_router(inventory_router, prefix=settings.API_V1_STR)
 app.include_router(dashboard_router, prefix=settings.API_V1_STR)
 app.include_router(feedback_router, prefix=settings.API_V1_STR)
+app.include_router(reports_router, prefix=settings.API_V1_STR)
 
 
 

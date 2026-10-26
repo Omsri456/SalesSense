@@ -313,4 +313,15 @@ export const api = {
     const q = storeId && storeId !== 'all' ? `?store_id=${encodeURIComponent(storeId)}` : '';
     return apiFetch(`/retailer/feedback${q}`);
   },
+
+  /**
+   * Analytical Reporting API (Task 8)
+   */
+  async getSalesSummaryReport(storeId = 'STORE_01', dateRange = '30d') {
+    return apiFetch(`/reports/sales-summary?store_id=${encodeURIComponent(storeId)}&date_range=${encodeURIComponent(dateRange)}`);
+  },
+
+  async getAccuracyHistory(storeId = 'STORE_01', productId = 'all') {
+    return apiFetch(`/forecast/accuracy-history/${encodeURIComponent(storeId)}/${encodeURIComponent(productId)}`);
+  },
 };
