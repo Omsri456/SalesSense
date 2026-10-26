@@ -23,6 +23,13 @@ router = APIRouter(prefix="/models", tags=["Models"])
 _MODEL_CACHE: Dict[str, Any] = {}
 
 
+def clear_model_cache() -> None:
+    """Clear in-memory tournament model cache so subsequent evaluations use the new dataset."""
+    global _MODEL_CACHE
+    _MODEL_CACHE.clear()
+    logger.info("Cleared _MODEL_CACHE following dataset update.")
+
+
 def _run_tournament(store_id: str = "STORE_01", product_id: str = "all") -> List[ModelSummary]:
     raw_df = load_series_data(store_id=store_id if store_id != "all" else None, product_id=product_id if product_id != "all" else None)
     if raw_df.empty:

@@ -111,3 +111,75 @@ def test_api_censoring_summary_endpoint(auth_headers):
     assert data["stockout_affected_records"] > 0
     assert data["total_estimated_demand"] > data["total_observed_sales"]
     assert data["total_lost_sales_estimate"] > 0
+
+
+def test_dataset_upload_cache_invalidation_and_product_list_change(auth_headers):
+    """
+    Verify Task 2: Uploading a new dataset forces warehouse rebuild and model cache invalidation,
+    causing warehouse metadata and product lists to change immediately.
+    """
+    import io
+    from app.dw.dimensional_model import dw_engine
+    from app.api.routes_models import _MODEL_CACHE
+
+    # 1. Capture original dataset and populate model cache with stale entry
+    orig_df = ingestion_service.load_active_dataset().copy()
+    _MODEL_CACHE["test_key"] = {"stale": True}
+
+    # 2. Build a valid custom dataset with a distinct SKU
+    custom_rows = []
+    for day in range(1, 15):
+        custom_rows.append({
+            "timestamp": f"2025-01-{day:02d}T08:00:00",
+            "dt": f"2025-01-{day:02d}",
+            "store_id": "STORE_01",
+            "city_id": "CITY_NORTH",
+            "product_id": "SKU-CUSTOM-NEW-01",
+            "category": "Produce",
+            "management_group_id": 1,
+            "first_category_id": 101,
+            "second_category_id": 1101,
+            "third_category_id": 11001,
+            "sale_amount": 25.0,
+            "unit_price": 3.99,
+            "discount": 0.0,
+            "holiday_flag": 0,
+            "activity_flag": 0,
+            "stock_hour6_22_cnt": 16,
+            "is_stockout_affected": False,
+            "precpt": 0.0,
+            "avg_temperature": 22.0,
+            "avg_humidity": 55.0,
+            "avg_wind_level": 2.0,
+        })
+    custom_df = pd.DataFrame(custom_rows)
+    csv_bytes = io.BytesIO()
+    custom_df.to_csv(csv_bytes, index=False)
+
+    try:
+        # 3. Post to /api/dataset/upload
+        res = client.post(
+            "/api/dataset/upload",
+            files={"file": ("custom_dataset.csv", csv_bytes.getvalue(), "text/csv")},
+            headers=auth_headers,
+        )
+        assert res.status_code == 200, res.text
+        assert "Warehouse and model cache re-synchronized" in res.json()["message"]
+
+        # 4. Assert model cache was cleared
+        assert "test_key" not in _MODEL_CACHE
+
+        # 5. Assert warehouse reflects new fact count
+        meta = dw_engine.get_warehouse_metadata()
+        assert meta["total_facts"] == len(custom_rows)
+
+        # 6. Assert /api/products returns the new product list immediately
+        prod_res = client.get("/api/products", headers=auth_headers)
+        assert prod_res.status_code == 200
+        prods = [p["value"] for p in prod_res.json()]
+        assert "SKU-CUSTOM-NEW-01" in prods
+    finally:
+        # Restore original dataset and warehouse
+        ingestion_service.save_dataset(orig_df, source_provenance="freshretailnet_subset.csv")
+        dw_engine.build_warehouse(force_rebuild=True)
+

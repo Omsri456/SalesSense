@@ -94,9 +94,17 @@ async def upload_dataset_file(
 
     try:
         report = ingestion_service.save_dataset(df, source_provenance=filename)
+
+        # Force synchronous warehouse rebuild and invalidate model cache
+        from app.dw.dimensional_model import dw_engine
+        from app.api.routes_models import clear_model_cache
+
+        dw_engine.build_warehouse(force_rebuild=True)
+        clear_model_cache()
+
         return {
             "status": "success",
-            "message": f"Dataset '{filename}' successfully validated and ingested.",
+            "message": f"Dataset '{filename}' successfully validated and ingested. Warehouse and model cache re-synchronized.",
             "report": report,
         }
     except Exception as e:
