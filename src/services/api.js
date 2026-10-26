@@ -295,4 +295,22 @@ export const api = {
   async adminGetStores() {
     return apiFetch('/admin/stores');
   },
+
+  /**
+   * Submit retailer operational ground-truth feedback (Task 6)
+   */
+  async submitFeedback(data) {
+    return apiFetch('/retailer/feedback', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Retrieve retailer feedback entries (scoped to user's assigned store)
+   */
+  async getFeedback(storeId = null) {
+    const q = storeId && storeId !== 'all' ? `?store_id=${encodeURIComponent(storeId)}` : '';
+    return apiFetch(`/retailer/feedback${q}`);
+  },
 };

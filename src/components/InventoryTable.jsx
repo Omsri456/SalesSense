@@ -1,4 +1,4 @@
-import { ArrowUp, ArrowDown, ArrowUpDown, CheckCircle2, ShoppingCart, AlertTriangle, ShieldAlert, Sparkles } from 'lucide-react'
+import { ArrowUp, ArrowDown, ArrowUpDown, CheckCircle2, ShoppingCart, AlertTriangle, ShieldAlert, Sparkles, MessageSquarePlus } from 'lucide-react'
 
 const statusConfig = {
   critical: { label: 'Critical', dot: 'bg-red-500', text: 'text-red-500', bg: 'bg-red-500/10' },
@@ -23,7 +23,7 @@ function SortIcon({ active, dir }) {
   return dir === 'asc' ? <ArrowUp className="h-3 w-3 text-primary" /> : <ArrowDown className="h-3 w-3 text-primary" />
 }
 
-export default function InventoryTable({ items, sortKey, sortDir, onSort, reorderedIds, onReorder }) {
+export default function InventoryTable({ items, sortKey, sortDir, onSort, reorderedIds, onReorder, onFeedback }) {
   if (items.length === 0) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm dark:border-white/10 dark:bg-slate-800/60">
@@ -192,22 +192,33 @@ export default function InventoryTable({ items, sortKey, sortDir, onSort, reorde
 
                   {/* Action */}
                   <td className="px-4 py-3.5 text-right">
-                    {suggested === 0 ? (
-                      <span className="text-xs text-slate-300 dark:text-slate-600">Not needed</span>
-                    ) : isReordered ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/10 px-3 py-1.5 text-xs font-medium text-secondary">
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        Placed
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => onReorder(item.id || item.product_id)}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary hover:text-white"
-                      >
-                        <ShoppingCart className="h-3.5 w-3.5" />
-                        Reorder {suggested}
-                      </button>
-                    )}
+                    <div className="inline-flex items-center justify-end gap-1.5">
+                      {onFeedback && (
+                        <button
+                          onClick={() => onFeedback(item)}
+                          title="Report stock count or flag forecast"
+                          className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-50 p-1.5 text-slate-500 transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary dark:border-white/10 dark:bg-slate-700/60 dark:text-slate-300 dark:hover:text-primary"
+                        >
+                          <MessageSquarePlus className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      {suggested === 0 ? (
+                        <span className="text-xs text-slate-300 dark:text-slate-600">Optimal</span>
+                      ) : isReordered ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/10 px-3 py-1.5 text-xs font-medium text-secondary">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Placed
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => onReorder(item.id || item.product_id, suggested, item)}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary hover:text-white"
+                        >
+                          <ShoppingCart className="h-3.5 w-3.5" />
+                          Reorder {suggested}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )

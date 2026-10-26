@@ -3,6 +3,7 @@ import DashboardLayout from '../layouts/DashboardLayout'
 import InventoryStatCards from '../components/InventoryStatCards'
 import InventoryFilterBar from '../components/InventoryFilterBar'
 import InventoryTable from '../components/InventoryTable'
+import RetailerFeedbackModal from '../components/RetailerFeedbackModal'
 import { inventoryItems } from '../data/inventoryData'
 import { withComputed } from '../lib/inventoryMath'
 import { api } from '../services/api'
@@ -24,6 +25,7 @@ export default function Inventory() {
   const [loading, setLoading] = useState(false)
   const [apiError, setApiError] = useState(null)
   const [rawItems, setRawItems] = useState([])
+  const [feedbackItem, setFeedbackItem] = useState(null)
 
   // Load authorized stores on mount
   useEffect(() => {
@@ -205,8 +207,19 @@ export default function Inventory() {
     }
   }
 
-  const handleReorder = (id) => {
+  const handleReorder = async (id, suggested, item) => {
     setReorderedIds((prev) => new Set(prev).add(id))
+    try {
+      await api.submitFeedback({
+        store_id: item?.warehouse || item?.store_id || selectedStore,
+        product_id: id,
+        feedback_type: 'confirmed_reorder',
+        reorder_quantity: suggested || 1,
+        notes: `Confirmed reorder dispatched via Inventory management.`,
+      })
+    } catch (err) {
+      console.debug('Operational feedback auto-log note:', err)
+    }
   }
 
   const pendingReorderCount = computed.filter(
@@ -267,8 +280,19 @@ export default function Inventory() {
             onSort={handleSort}
             reorderedIds={reorderedIds}
             onReorder={handleReorder}
+            onFeedback={(item) => setFeedbackItem(item)}
           />
         )}
+
+        <RetailerFeedbackModal
+          isOpen={Boolean(feedbackItem)}
+          item={feedbackItem}
+          storeId={selectedStore}
+          onClose={() => setFeedbackItem(null)}
+          onSuccess={() => {
+            // refresh or mark if needed
+          }}
+        />
       </div>
     </DashboardLayout>
   )

@@ -1,0 +1,15 @@
+[
+  {
+    "id": "fb-b1cf5997",
+    "timestamp": "2026-10-26T06:51:18.667491+00:00",
+    "store_id": "STORE_01",
+    "product_id": "SKU-1001",
+    "feedback_type": "confirmed_reorder",
+    "actual_stock": null,
+    "reorder_quantity": 40,
+    "notes": "Emergency replenishment dispatched due to high weekend surge.",
+    "user_id": "usr-retailer-01",
+    "user_email": "retailer1@salessense.com",
+    "user_name": "Attacker"
+  }
+]

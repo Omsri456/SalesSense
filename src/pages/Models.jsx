@@ -3,6 +3,7 @@ import DashboardLayout from '../layouts/DashboardLayout'
 import ModelCard from '../components/ModelCard'
 import ModelDetailsPanel from '../components/ModelDetailsPanel'
 import ModelComparisonChart from '../components/ModelComparisonChart'
+import RetailerFeedbackPanel from '../components/RetailerFeedbackPanel'
 import { api } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import { initialModels } from '../data/modelsData'
@@ -149,6 +150,8 @@ export default function Models() {
         <ModelComparisonChart models={models} selectedId={selectedId} />
 
         <ModelDetailsPanel model={selectedModel} />
+
+        <RetailerFeedbackPanel />
       </div>
     </DashboardLayout>
   )

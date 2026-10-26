@@ -132,3 +132,56 @@ def test_dw_and_mining_role_restrictions():
     assert client.get("/api/dw/metadata", headers=adm_headers).status_code == 200
     assert client.get("/api/dw/schema", headers=adm_headers).status_code == 200
     assert client.get("/api/mining/market-basket", headers=adm_headers).status_code == 200
+
+
+def test_retailer_feedback_submission_and_scoping():
+    """Verify Task 6: Retailer feedback write-path, store scope enforcement, and visibility to admin."""
+    # 1. Retailer 1 login
+    login_ret = client.post("/api/auth/login", json={"email": "retailer1@salessense.com", "password": "Password123!"})
+    ret_token = login_ret.json()["access_token"]
+    ret_headers = {"Authorization": f"Bearer {ret_token}"}
+
+    # 2. Admin login
+    login_adm = client.post("/api/auth/login", json={"email": "admin@salessense.com", "password": "Password123!"})
+    adm_token = login_adm.json()["access_token"]
+    adm_headers = {"Authorization": f"Bearer {adm_token}"}
+
+    # 3. Valid feedback on assigned store (STORE_01)
+    res_valid = client.post(
+        "/api/retailer/feedback",
+        json={
+            "store_id": "STORE_01",
+            "product_id": "SKU-1001",
+            "feedback_type": "confirmed_reorder",
+            "reorder_quantity": 40,
+            "notes": "Emergency replenishment dispatched due to high weekend surge.",
+        },
+        headers=ret_headers,
+    )
+    assert res_valid.status_code == 200, res_valid.text
+    fb_data = res_valid.json()
+    assert fb_data["store_id"] == "STORE_01"
+    assert fb_data["feedback_type"] == "confirmed_reorder"
+    assert fb_data["reorder_quantity"] == 40
+    assert "id" in fb_data
+
+    # 4. Cross-store feedback attempt by Retailer 1 on STORE_02 must return 403
+    res_cross = client.post(
+        "/api/retailer/feedback",
+        json={
+            "store_id": "STORE_02",
+            "product_id": "SKU-1002",
+            "feedback_type": "report_stock_count",
+            "actual_stock": 15,
+        },
+        headers=ret_headers,
+    )
+    assert res_cross.status_code == 403
+
+    # 5. Admin can retrieve and inspect all submitted feedback
+    res_adm_list = client.get("/api/retailer/feedback", headers=adm_headers)
+    assert res_adm_list.status_code == 200
+    all_fb = res_adm_list.json()
+    assert len(all_fb) > 0
+    assert any(f["id"] == fb_data["id"] for f in all_fb)
+
