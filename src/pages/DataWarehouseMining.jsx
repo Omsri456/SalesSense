@@ -1241,9 +1241,9 @@ export default function DataWarehouseMining() {
                       <thead className="bg-slate-50 text-slate-500 dark:bg-white/5 dark:text-slate-400">
                         <tr>
                           {olapData.length > 0 &&
-                            Object.keys(olapData[0]).slice(0, 8).map((key) => (
+                            Object.keys(olapData[0]).slice(0, 9).map((key) => (
                               <th key={key} className="py-2.5 px-3 uppercase font-mono">
-                                {key.replace('_', ' ')}
+                                {key.replace(/_/g, ' ')}
                               </th>
                             ))}
                           {olapOp === 'rollup' && olapHierarchy === 'category' && (
@@ -1254,16 +1254,22 @@ export default function DataWarehouseMining() {
                       <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                         {olapData.length === 0 ? (
                           <tr>
-                            <td colSpan={8} className="py-6 text-center text-slate-400 font-mono">
+                            <td colSpan={9} className="py-6 text-center text-slate-400 font-mono">
                               No records match the selected OLAP query parameters.
                             </td>
                           </tr>
                         ) : (
                           olapData.slice(0, 50).map((row, idx) => (
                             <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition">
-                              {Object.keys(olapData[0]).slice(0, 8).map((key) => {
+                              {Object.keys(olapData[0]).slice(0, 9).map((key) => {
                                 const val = row[key]
                                 const isNum = typeof val === 'number'
+                                let displayVal = isNum ? val.toLocaleString() : String(val ?? '—')
+                                if (key === 'recovery_confidence' && isNum) {
+                                  displayVal = `${Math.round(val * 100)}%`
+                                } else if (key === 'estimated_latent_demand' && row.recovery_confidence != null) {
+                                  displayVal = `${val.toLocaleString()} (${Math.round(row.recovery_confidence * 100)}% conf)`
+                                }
                                 return (
                                   <td
                                     key={key}
@@ -1271,7 +1277,7 @@ export default function DataWarehouseMining() {
                                       isNum ? 'font-mono text-slate-700 dark:text-slate-300' : 'font-medium text-slate-800 dark:text-slate-200'
                                     }`}
                                   >
-                                    {isNum ? val.toLocaleString() : String(val)}
+                                    {displayVal}
                                   </td>
                                 )
                               })}

@@ -93,6 +93,10 @@ class ForecastService:
         monthly_groups = featured_df.groupby("period_m")["sale_amount"].sum()
         latent_col = "estimated_latent_demand" if "estimated_latent_demand" in featured_df.columns else "sale_amount"
         monthly_latent = featured_df.groupby("period_m")[latent_col].sum()
+        has_conf = "recovery_confidence" in featured_df.columns
+        has_stockout = "is_stockout_affected" in featured_df.columns
+        monthly_conf = featured_df.groupby("period_m")["recovery_confidence"].mean() if has_conf else {}
+        monthly_stockout = featured_df.groupby("period_m")["is_stockout_affected"].max() if has_stockout else {}
         recent_months = monthly_groups.tail(6)
 
         chart_points: List[ChartDataPoint] = []
@@ -102,12 +106,16 @@ class ForecastService:
             is_last = idx == len(recent_list) - 1
             latent_val = int(round(monthly_latent.get(period, total_sales)))
             lost_val = max(0, latent_val - int(total_sales))
+            conf_val = round(float(monthly_conf.get(period, 1.0)), 2) if has_conf else 1.0
+            stockout_flag = bool(monthly_stockout.get(period, 0) == 1) if has_stockout else False
             chart_points.append(
                 ChartDataPoint(
                     month=m_label,
                     actual=int(total_sales),
                     latent_demand=latent_val,
                     lost_sales=lost_val,
+                    recovery_confidence=conf_val,
+                    is_stockout_affected=stockout_flag,
                     forecast=int(total_sales) if is_last else None,
                     predicted=int(total_sales) if is_last else None,
                 )
@@ -189,6 +197,7 @@ class ForecastService:
             all_models=all_models,
             chartData=chart_points,
             forecast=forecast_points,
+            average_recovery_confidence=round(float(censoring_res.get("average_recovery_confidence", 1.0)), 2),
         )
 
         _CACHE[cache_key] = {"timestamp": now, "data": response}

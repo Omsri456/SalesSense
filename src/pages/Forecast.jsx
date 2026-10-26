@@ -96,6 +96,11 @@ export default function Forecast() {
                           Live Verified
                         </span>
                       )}
+                      {result.average_recovery_confidence != null && (
+                        <span className="rounded-md bg-sky-500/10 px-2 py-0.5 text-[10px] font-semibold text-sky-600">
+                          {Math.round(result.average_recovery_confidence * 100)}% Demand Recovery Confidence
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-slate-600 dark:text-slate-300">
                       {result.best_model.reason ||

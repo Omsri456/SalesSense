@@ -32,6 +32,8 @@ class ChartDataPoint(BaseModel):
     high: Optional[int] = None
     latent_demand: Optional[int] = None
     lost_sales: Optional[int] = None
+    recovery_confidence: Optional[float] = None
+    is_stockout_affected: Optional[bool] = None
 
 
 class BestModelDetails(BaseModel):
@@ -65,6 +67,7 @@ class ForecastResponse(BaseModel):
     all_models: List[ModelSummary]
     chartData: List[ChartDataPoint]
     forecast: List[ForecastDataPoint]
+    average_recovery_confidence: Optional[float] = None
 
 
 class ForecastRequest(BaseModel):

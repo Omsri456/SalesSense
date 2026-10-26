@@ -12,6 +12,7 @@ export default function SalesTrendChart({ data = [], subtitle = 'Observed sales 
       actual,
       latent,
       lost,
+      recovery_confidence: d.recovery_confidence,
     }
   })
 
@@ -61,8 +62,11 @@ export default function SalesTrendChart({ data = [], subtitle = 'Observed sales 
               color: '#F8FAFC',
               fontSize: 12,
             }}
-            formatter={(value, name) => {
-              if (name === 'latent') return [`${value.toLocaleString()} units`, 'Unconstrained Latent Demand']
+            formatter={(value, name, item) => {
+              if (name === 'latent') {
+                const conf = item?.payload?.recovery_confidence != null ? Math.round(item.payload.recovery_confidence * 100) : 100
+                return [`${value.toLocaleString()} units (${conf}% confidence)`, 'Recovered Latent Demand']
+              }
               if (name === 'actual') return [`${value.toLocaleString()} units`, 'Observed Sales']
               return [value, name]
             }}

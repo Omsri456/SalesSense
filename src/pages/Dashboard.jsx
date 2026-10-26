@@ -158,6 +158,7 @@ export default function Dashboard() {
           actual: d.actual,
           latent_demand: d.latent_demand,
           lost_sales: d.lost_sales,
+          recovery_confidence: d.recovery_confidence,
         }))
     }
     return []

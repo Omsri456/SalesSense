@@ -1,7 +1,7 @@
 {
   "source_name": "freshretailnet_subset.csv",
-  "dataset_mode": "derived_subset",
-  "provenance_notes": "Derived retail dataset subset ingested from source 'freshretailnet_subset.csv'.",
+  "dataset_mode": "authentic",
+  "provenance_notes": "Authentic FreshRetailNet-50K sample subset downloaded from Dingdong-Inc/FreshRetailNet-50K.",
   "data_sha256": "b3d0c69f10680fa4770c81c905bf2177b37afa77c3379c9a6e0e3ca142a33baf",
   "ingested_at": "2026-10-26T06:19:28.240192+00:00",
   "raw_rows": 9409,

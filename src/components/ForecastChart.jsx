@@ -55,9 +55,14 @@ export default function ForecastChart({ data = [] }) {
           <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
           <Tooltip
             contentStyle={{ borderRadius: 12, border: '1px solid #E2E8F0', fontSize: 12 }}
-            formatter={(v, name) =>
-              v === null || v === undefined ? ['—', name] : [`$${Number(v).toLocaleString()}`, name]
-            }
+            formatter={(v, name, item) => {
+              if (v === null || v === undefined) return ['—', name]
+              const conf = item?.payload?.recovery_confidence != null ? Math.round(item.payload.recovery_confidence * 100) : 100
+              if (item?.payload?.is_stockout_affected && name === 'Actual') {
+                return [`$${Number(v).toLocaleString()} (${conf}% recovery confidence)`, 'Actual (Stockout Censored)']
+              }
+              return [`$${Number(v).toLocaleString()}`, name]
+            }}
           />
           <Legend wrapperStyle={{ fontSize: 12 }} />
 

@@ -85,12 +85,14 @@ class OLAPEngine:
             "lost_revenue_estimate": "sum",
             "fact_id": "count",
         }
+        if "recovery_confidence" in df.columns:
+            agg_dict["recovery_confidence"] = "mean"
         if metric in df.columns and metric not in agg_dict:
             agg_dict[metric] = "sum"
 
         grouped = df.groupby(hierarchy_level, as_index=False).agg(agg_dict)
         grouped.rename(columns={"fact_id": "record_count"}, inplace=True)
-        for num_col in ["observed_sales", "gross_revenue", "estimated_latent_demand", "lost_sales_estimate", "lost_revenue_estimate"]:
+        for num_col in ["observed_sales", "gross_revenue", "estimated_latent_demand", "lost_sales_estimate", "lost_revenue_estimate", "recovery_confidence"]:
             if num_col in grouped.columns:
                 grouped[num_col] = grouped[num_col].round(2)
 
@@ -122,16 +124,20 @@ class OLAPEngine:
         if filtered.empty:
             return []
 
-        grouped = filtered.groupby(child_dimension, as_index=False).agg({
+        drill_agg = {
             "observed_sales": "sum",
             "gross_revenue": "sum",
             "estimated_latent_demand": "sum",
             "lost_sales_estimate": "sum",
             "lost_revenue_estimate": "sum",
             "fact_id": "count",
-        })
+        }
+        if "recovery_confidence" in filtered.columns:
+            drill_agg["recovery_confidence"] = "mean"
+
+        grouped = filtered.groupby(child_dimension, as_index=False).agg(drill_agg)
         grouped.rename(columns={"fact_id": "record_count"}, inplace=True)
-        for num_col in ["observed_sales", "gross_revenue", "estimated_latent_demand", "lost_sales_estimate", "lost_revenue_estimate"]:
+        for num_col in ["observed_sales", "gross_revenue", "estimated_latent_demand", "lost_sales_estimate", "lost_revenue_estimate", "recovery_confidence"]:
             if num_col in grouped.columns:
                 grouped[num_col] = grouped[num_col].round(2)
 
@@ -180,16 +186,23 @@ class OLAPEngine:
         if time_grain not in sliced.columns:
             time_grain = "date_str"
 
-        ts = sliced.groupby(time_grain, as_index=False).agg({
+        slice_agg = {
             "observed_sales": "sum",
             "gross_revenue": "sum",
             "estimated_latent_demand": "sum",
             "lost_sales_estimate": "sum",
             "lost_revenue_estimate": "sum",
-        }).sort_values(by=time_grain)
+        }
+        if "recovery_confidence" in sliced.columns:
+            slice_agg["recovery_confidence"] = "mean"
 
-        for col in ["observed_sales", "gross_revenue", "estimated_latent_demand", "lost_sales_estimate", "lost_revenue_estimate"]:
-            ts[col] = ts[col].round(2)
+        ts = sliced.groupby(time_grain, as_index=False).agg(slice_agg).sort_values(by=time_grain)
+
+        for col in ["observed_sales", "gross_revenue", "estimated_latent_demand", "lost_sales_estimate", "lost_revenue_estimate", "recovery_confidence"]:
+            if col in ts.columns:
+                ts[col] = ts[col].round(2)
+
+        avg_conf = float(sliced["recovery_confidence"].mean().round(2)) if "recovery_confidence" in sliced.columns else 1.0
 
         return {
             "dimension": dimension,
@@ -198,6 +211,7 @@ class OLAPEngine:
             "total_revenue": float(sliced["gross_revenue"].sum().round(2)),
             "total_latent_demand": float(sliced["estimated_latent_demand"].sum().round(2)),
             "total_lost_revenue": float(sliced["lost_revenue_estimate"].sum().round(2)),
+            "average_recovery_confidence": avg_conf,
             "time_series": ts.to_dict(orient="records"),
         }
 
@@ -232,6 +246,8 @@ class OLAPEngine:
         if df.empty:
             return {"cube_size": 0, "summary": {}, "sample_records": []}
 
+        avg_conf = float(df["recovery_confidence"].mean().round(2)) if "recovery_confidence" in df.columns else 1.0
+
         summary = {
             "total_records": int(len(df)),
             "unique_stores": int(df["store_id"].nunique()),
@@ -240,12 +256,14 @@ class OLAPEngine:
             "total_gross_revenue": float(df["gross_revenue"].sum().round(2)),
             "total_estimated_latent_demand": float(df["estimated_latent_demand"].sum().round(2)),
             "total_lost_revenue_estimate": float(df["lost_revenue_estimate"].sum().round(2)),
+            "average_recovery_confidence": avg_conf,
         }
 
         # Safe capped sample of records for tabular inspection
         available_cols = [c for c in [
             "date_str", "store_id", "product_id", "product_name", "category",
-            "observed_sales", "gross_revenue", "estimated_latent_demand", "lost_revenue_estimate", "stock_hour6_22_cnt"
+            "observed_sales", "gross_revenue", "estimated_latent_demand", "lost_revenue_estimate",
+            "recovery_confidence", "stock_hour6_22_cnt"
         ] if c in df.columns]
 
         top_records = df[available_cols].head(limit).to_dict(orient="records")

@@ -155,6 +155,9 @@ async def get_dashboard_insights(
                 total_waste_cost += cost
                 expiry_skus.append((str(pid), first_row.get("product_name", f"SKU-{pid}"), waste_u, cost))
 
+    avg_recovery_conf = float(active_slice["recovery_confidence"].mean()) if "recovery_confidence" in active_slice.columns else 1.0
+    conf_pct = int(round(avg_recovery_conf * 100))
+
     # Form KPI objects
     kpis = [
         {
@@ -173,7 +176,7 @@ async def get_dashboard_insights(
             "change": f"{stockout_days} stockout days logged",
             "trend": "down",
             "color": "text-rose-600",
-            "subtext": f"{round(latent_units):,} estimated lost units",
+            "subtext": f"Recovered demand: {round(latent_units):,} units ({conf_pct}% confidence)",
         },
         {
             "id": "champion_model",
@@ -283,6 +286,7 @@ async def get_dashboard_insights(
             "rmse": round(rmse, 2),
             "accuracy": round(model_accuracy, 1),
         },
+        "average_recovery_confidence": round(avg_recovery_conf, 2),
     }
 
 

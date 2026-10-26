@@ -122,8 +122,9 @@ def test_dataset_upload_cache_invalidation_and_product_list_change(auth_headers)
     from app.dw.dimensional_model import dw_engine
     from app.api.routes_models import _MODEL_CACHE
 
-    # 1. Capture original dataset and populate model cache with stale entry
+    # 1. Capture original dataset and provenance manifest
     orig_df = ingestion_service.load_active_dataset().copy()
+    orig_prov = ingestion_service.get_provenance().copy()
     _MODEL_CACHE["test_key"] = {"stale": True}
 
     # 2. Build a valid custom dataset with a distinct SKU
@@ -179,7 +180,11 @@ def test_dataset_upload_cache_invalidation_and_product_list_change(auth_headers)
         prods = [p["value"] for p in prod_res.json()]
         assert "SKU-CUSTOM-NEW-01" in prods
     finally:
-        # Restore original dataset and warehouse
+        # Restore original dataset, provenance manifest, and warehouse
         ingestion_service.save_dataset(orig_df, source_provenance="freshretailnet_subset.csv")
+        from app.data.ingestion_service import METADATA_JSON_PATH
+        import json
+        with open(METADATA_JSON_PATH, "w", encoding="utf-8") as f:
+            json.dump(orig_prov, f, indent=2)
         dw_engine.build_warehouse(force_rebuild=True)
 
