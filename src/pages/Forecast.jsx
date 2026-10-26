@@ -107,19 +107,25 @@ export default function Forecast() {
                     <div className="rounded-lg bg-white/80 px-2.5 py-1.5 dark:bg-slate-800">
                       <span className="text-[10px] text-slate-400 block">wMAPE</span>
                       <span className="font-bold text-slate-900 dark:text-white">
-                        {(result.best_model.metrics?.wmape || 0.058).toFixed(3)}
+                        {result.best_model.metrics?.wmape != null
+                          ? Number(result.best_model.metrics.wmape).toFixed(3)
+                          : '—'}
                       </span>
                     </div>
                     <div className="rounded-lg bg-white/80 px-2.5 py-1.5 dark:bg-slate-800">
                       <span className="text-[10px] text-slate-400 block">RMSE</span>
                       <span className="font-bold text-slate-900 dark:text-white">
-                        {(result.best_model.metrics?.rmse || 364.8).toFixed(1)}
+                        {result.best_model.metrics?.rmse != null
+                          ? Number(result.best_model.metrics.rmse).toFixed(1)
+                          : '—'}
                       </span>
                     </div>
                     <div className="rounded-lg bg-white/80 px-2.5 py-1.5 dark:bg-slate-800">
                       <span className="text-[10px] text-slate-400 block">R² Score</span>
                       <span className="font-bold text-emerald-600">
-                        {(result.best_model.metrics?.r2 || 0.941).toFixed(3)}
+                        {result.best_model.metrics?.r2 != null
+                          ? Number(result.best_model.metrics.r2).toFixed(3)
+                          : '—'}
                       </span>
                     </div>
                   </div>
