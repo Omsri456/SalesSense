@@ -166,7 +166,7 @@ async def get_inventory_recommendations(
         # Expiry risk detection
         is_expiry = days_cover > shelf_life
         if is_expiry:
-            waste_units = max(0, int(round(current_stock - (daily_demand * shelf_life))))
+            waste_units = max(1, int(math.ceil(current_stock - (daily_demand * shelf_life))))
             status_label = "expiry_risk"
         elif days_cover <= lead_time:
             waste_units = 0

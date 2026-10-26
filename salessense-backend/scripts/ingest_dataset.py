@@ -14,6 +14,9 @@ Features preserved:
 import os
 import sys
 import logging
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from datetime import datetime, timedelta, timezone
 import numpy as np
 import pandas as pd
@@ -235,44 +238,54 @@ SKUS = [
 ]
 
 
-def try_download_huggingface_dataset(subset_size: int = 10000) -> pd.DataFrame:
+def try_download_huggingface_dataset(subset_size: int = 100000) -> pd.DataFrame:
     """
     Attempts to download authentic FreshRetailNet-50K dataset from Hugging Face Hub (Dingdong-Inc/FreshRetailNet-50K).
-    Downloads authentic parquet files and samples 5 stores and 36 products across categories.
+    Downloads authentic parquet files (train + eval) and samples 5 stores and 36 products across categories
+    covering the full continuous 97-day historical window (2024-03-28 to 2024-07-02).
     """
     try:
         from huggingface_hub import hf_hub_download
         logger.info("Attempting download of FreshRetailNet-50K from Hugging Face Hub (Dingdong-Inc/FreshRetailNet-50K)...")
         repo_id = "Dingdong-Inc/FreshRetailNet-50K"
-        
-        # FreshRetailNet-50K uses data/eval.parquet and data/train.parquet
+
         eval_path = hf_hub_download(repo_id=repo_id, filename="data/eval.parquet", repo_type="dataset")
-        logger.info("Fetched authentic eval partition from %s", eval_path)
-        
-        df_raw = pd.read_parquet(eval_path)
-        logger.info("Loaded %d authentic records from eval.parquet.", len(df_raw))
+        train_path = hf_hub_download(repo_id=repo_id, filename="data/train.parquet", repo_type="dataset")
+        logger.info("Fetched authentic partitions: eval from %s, train from %s", eval_path, train_path)
 
-        # Stratified sampling: 5 stores, 36 products
-        np.random.seed(42)
-        top_stores = df_raw["store_id"].value_counts().head(5).index.tolist()
-        df_filtered = df_raw[df_raw["store_id"].isin(top_stores)].copy()
+        # 1. Inspect eval to discover top stores and 36 products across management groups
+        df_eval_raw = pd.read_parquet(eval_path)
+        top_stores = df_eval_raw["store_id"].value_counts().head(5).index.tolist()
 
-        # Select products across management groups
         sampled_products = []
-        for mgmt_grp in sorted(df_filtered["management_group_id"].unique()):
-            prods = df_filtered[df_filtered["management_group_id"] == mgmt_grp]["product_id"].unique()
+        for mgmt_grp in sorted(df_eval_raw["management_group_id"].unique())[:6]:
+            prods = df_eval_raw[df_eval_raw["management_group_id"] == mgmt_grp]["product_id"].unique()
             if len(prods) > 0:
                 take_k = min(6, len(prods))
                 sampled_products.extend(list(prods[:take_k]))
 
-        df_sample = df_filtered[df_filtered["product_id"].isin(sampled_products)].copy()
-        
-        # Map store IDs to standard STORE_01..STORE_05
+        logger.info("Selected top 5 stores %s and %d products across 6 management groups.", top_stores, len(sampled_products))
+
+        # 2. Filter eval and train partitions
+        df_eval = df_eval_raw[(df_eval_raw["store_id"].isin(top_stores)) & (df_eval_raw["product_id"].isin(sampled_products))].copy()
+        del df_eval_raw
+
+        df_train = pd.read_parquet(
+            train_path,
+            filters=[("store_id", "in", top_stores), ("product_id", "in", sampled_products)],
+        )
+        logger.info("Read train slice: %d records, eval slice: %d records.", len(df_train), len(df_eval))
+
+        # 3. Concatenate into full 97-day authentic dataset
+        df_sample = pd.concat([df_train, df_eval], ignore_index=True)
+        del df_train, df_eval
+
+        # 4. Map store IDs to standard STORE_01..STORE_05
         store_map = {orig: f"STORE_0{i+1}" for i, orig in enumerate(sorted(top_stores))}
         df_sample["store_id"] = df_sample["store_id"].map(store_map)
         df_sample["city_id"] = "CITY_" + df_sample["city_id"].astype(str)
 
-        # Map categories
+        # 5. Map categories & human-readable product names
         cat_map = {
             0: "Produce",
             1: "Meat",
@@ -289,11 +302,27 @@ def try_download_huggingface_dataset(subset_size: int = 10000) -> pd.DataFrame:
         df_sample["is_stockout_affected"] = df_sample["stock_hour6_22_cnt"] < 16
         df_sample["timestamp"] = pd.to_datetime(df_sample["dt"]).dt.strftime("%Y-%m-%dT08:00:00")
 
-        logger.info("Successfully prepared %d authentic records across %d stores and %d products.",
-                    len(df_sample), df_sample["store_id"].nunique(), df_sample["product_id"].nunique())
+        # 6. Sanitize array columns for CSV and MongoDB compatibility
+        if "hours_sale" in df_sample.columns:
+            df_sample["hours_sale"] = df_sample["hours_sale"].apply(
+                lambda x: ",".join(map(str, x)) if isinstance(x, (np.ndarray, list)) else str(x)
+            )
+        if "hours_stock_status" in df_sample.columns:
+            df_sample["hours_stock_status"] = df_sample["hours_stock_status"].apply(
+                lambda x: "".join(map(str, x)) if isinstance(x, (np.ndarray, list)) else str(x)
+            )
+
+        df_sample.sort_values(by=["dt", "store_id", "product_id"], inplace=True)
+        logger.info(
+            "Successfully prepared %d authentic records across %d stores (%s to %s).",
+            len(df_sample),
+            df_sample["store_id"].nunique(),
+            df_sample["dt"].min(),
+            df_sample["dt"].max(),
+        )
         return df_sample.head(subset_size)
     except Exception as e:
-        logger.info("Hugging Face remote pull unavailable (%s). Using high-fidelity benchmark fixture generator.", e)
+        logger.error("Hugging Face remote pull encountered an error: %s", e)
         return pd.DataFrame()
 
 
@@ -479,10 +508,19 @@ def main():
         collection.insert_many(df.to_dict(orient="records"))
         logger.info("Successfully ingested %d records into MongoDB collection 'raw_sales'.", len(df))
     except Exception as e:
-        logger.warning("MongoDB not active. Retained local CSV dataset. (%s)", e)
+        logger.warning("MongoDB not active or serialization error. Retained local CSV dataset. (%s)", e)
+
+    try:
+        from app.dw.dimensional_model import dw_engine
+        logger.info("Rebuilding Kimball Star Schema Data Warehouse from newly ingested dataset...")
+        dw_engine.build_warehouse(force_rebuild=True)
+        logger.info("Kimball Star Schema Data Warehouse rebuilt successfully.")
+    except Exception as e:
+        logger.warning("Could not rebuild data warehouse automatically: %s", e)
 
     logger.info("FreshRetailNet-50K Ingestion completed successfully (%s mode).", dataset_mode)
 
 
 if __name__ == "__main__":
     main()
+
