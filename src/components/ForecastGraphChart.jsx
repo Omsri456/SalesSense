@@ -1,5 +1,16 @@
 import { useState } from 'react'
-import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts'
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  CartesianGrid,
+  ReferenceLine,
+  ReferenceDot,
+} from 'recharts'
 import { Trophy, ChevronDown } from 'lucide-react'
 import { forecastGraph as defaultForecastGraph } from '../data/dashboardData'
 
@@ -16,6 +27,15 @@ export default function ForecastGraphChart({
     actual: d.actual !== undefined ? d.actual : null,
     predicted: d.predicted ?? d.forecast ?? null,
   }))
+
+  const todayItem =
+    chartData.slice().reverse().find((d) => d.actual != null) ||
+    (chartData.length > 0 ? chartData[Math.floor(chartData.length / 2)] : null)
+  const todayX = todayItem?.month || todayItem?.date
+
+  const stockoutDays = chartData.filter(
+    (d) => d.is_stockout_affected === true || d.is_stockout === true || d.stockout === true
+  )
 
   const wmapeScore = bestModel?.metrics?.wmape
     ? `${(bestModel.metrics.wmape * 100).toFixed(1)}%`
@@ -34,7 +54,13 @@ export default function ForecastGraphChart({
               </span>
             )}
           </div>
-          <p className="mt-0.5 text-xs font-mono text-slate-400">{subtitle}</p>
+          <div className="mt-0.5 flex items-center gap-3 text-xs font-mono text-slate-400">
+            <span>{subtitle}</span>
+            <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+              <span className="h-2 w-2 rounded-full bg-red-500" />
+              Stockout Day
+            </span>
+          </div>
         </div>
 
         {allModels.length > 1 && (
@@ -56,7 +82,7 @@ export default function ForecastGraphChart({
       </div>
 
       <ResponsiveContainer width="100%" height={230}>
-        <LineChart data={chartData} margin={{ left: -15, right: 10, top: 5, bottom: 5 }}>
+        <LineChart data={chartData} margin={{ left: -15, right: 10, top: 15, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-slate-200 dark:text-white/5" vertical={false} />
           <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
@@ -70,6 +96,35 @@ export default function ForecastGraphChart({
             }}
           />
           <Legend wrapperStyle={{ fontSize: 12, paddingTop: 6 }} />
+
+          {todayX && (
+            <ReferenceLine
+              x={todayX}
+              stroke="#94A3B8"
+              strokeDasharray="4 4"
+              strokeWidth={1.5}
+              label={{
+                value: 'Today',
+                position: 'top',
+                fill: '#64748B',
+                fontSize: 10,
+                fontWeight: 700,
+              }}
+            />
+          )}
+
+          {stockoutDays.map((d, i) => (
+            <ReferenceDot
+              key={`stockout-graph-${i}`}
+              x={d.month || d.date}
+              y={d.actual ?? d.predicted ?? 0}
+              r={4.5}
+              fill="#EF4444"
+              stroke="#FFFFFF"
+              strokeWidth={2}
+            />
+          ))}
+
           <Line
             type="monotone"
             dataKey="actual"
