@@ -241,7 +241,7 @@ export default function Dashboard() {
                 className="bg-transparent font-semibold text-primary focus:outline-none cursor-pointer"
               >
                 {stores.map((s) => (
-                  <option key={s.store_id || s} value={s.store_id || s}>
+                  <option key={s.store_id || s} value={s.store_id || s} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100">
                     {s.store_id || s} {s.store_name ? `· ${s.store_name}` : ''}
                   </option>
                 ))}
@@ -255,7 +255,7 @@ export default function Dashboard() {
         </div>
 
         <div className="flex items-center gap-2">
-          <ProductSelector value={sku} onChange={setSku} />
+          <ProductSelector value={sku} onChange={setSku} products={products} />
         </div>
       </div>
 

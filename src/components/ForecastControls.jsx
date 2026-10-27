@@ -29,7 +29,7 @@ export default function ForecastControls({
             className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
           >
             {skuOptions.map((o) => (
-              <option key={o.value} value={o.value}>
+              <option key={o.value} value={o.value} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100">
                 {o.label}
               </option>
             ))}
@@ -51,7 +51,7 @@ export default function ForecastControls({
             className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
           >
             {dynamicOptions.map((o) => (
-              <option key={o.value} value={o.value}>
+              <option key={o.value} value={o.value} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100">
                 {o.label}
               </option>
             ))}
