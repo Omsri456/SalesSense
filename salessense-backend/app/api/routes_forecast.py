@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from fastapi import APIRouter, Query, Depends, HTTPException, status
 from app.db.schemas import ForecastResponse, ForecastRequest
 from app.services.forecast_service import forecast_service
@@ -11,7 +11,7 @@ router = APIRouter(prefix="/forecast", tags=["Forecast"])
 async def get_forecast(
     store_id: str,
     product_id: str,
-    horizon_days: int = Query(90, ge=7, le=365, description="Forecast horizon in days"),
+    horizon_days: Optional[int] = Query(None, ge=1, le=365, description="Forecast horizon in days (default: auto-computed max safe horizon)"),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """

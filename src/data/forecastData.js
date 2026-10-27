@@ -11,9 +11,9 @@ export const modelOptions = [
 ]
 
 export const horizonOptions = [
-  { value: 30, label: '30 days' },
-  { value: 90, label: '90 days' },
-  { value: 180, label: '6 months' },
+  { value: 7, label: '7 days' },
+  { value: 14, label: '14 days' },
+  { value: 27, label: '27 days (Max Safe)' },
 ]
 
 const historyMonths = [

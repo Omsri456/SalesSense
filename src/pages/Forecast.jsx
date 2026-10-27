@@ -16,7 +16,7 @@ export default function Forecast() {
   const [viewMode, setViewMode] = useState('single') // 'single' | 'compare'
   const [sku, setSku] = useState('all')
   const [modelId, setModelId] = useState('lstm')
-  const [horizon, setHorizon] = useState(90)
+  const [horizon, setHorizon] = useState(null)
 
   const { data: result, loading, error, isLive } = useForecast({
     sku,
@@ -138,13 +138,28 @@ export default function Forecast() {
               </div>
             )}
 
+            {result?.is_clamped && (
+              <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:border-amber-500/30 dark:text-amber-200">
+                <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                <div className="space-y-0.5">
+                  <span className="font-semibold">Safe Horizon Bounded:</span>
+                  <p className="text-[11px] leading-relaxed opacity-90">
+                    {result.warning ||
+                      `Requested horizon exceeded safe statistical limits (~35% of training window). Clamped to ${result.max_safe_horizon || result.horizon_days} days to prevent runaway ARIMA drift.`}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <ForecastControls
               sku={sku}
               onSku={setSku}
               modelId={modelId}
               onModel={setModelId}
-              horizon={horizon}
+              horizon={horizon || result?.horizon_days || result?.max_safe_horizon}
               onHorizon={setHorizon}
+              availableHorizons={result?.available_horizons}
+              maxSafeHorizon={result?.max_safe_horizon}
             />
 
             {loading && (

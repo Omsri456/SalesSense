@@ -1,6 +1,23 @@
-import { skuOptions, modelOptions, horizonOptions } from '../data/forecastData'
+import { skuOptions, modelOptions, horizonOptions as defaultHorizonOptions } from '../data/forecastData'
 
-export default function ForecastControls({ sku, onSku, modelId, onModel, horizon, onHorizon }) {
+export default function ForecastControls({
+  sku,
+  onSku,
+  modelId,
+  onModel,
+  horizon,
+  onHorizon,
+  availableHorizons = null,
+  maxSafeHorizon = null,
+}) {
+  const dynamicOptions =
+    availableHorizons && availableHorizons.length > 0
+      ? availableHorizons.map((h) => ({
+          value: h,
+          label: `${h} days${h === maxSafeHorizon ? ' (Max Safe)' : ''}`,
+        }))
+      : defaultHorizonOptions
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-800/60">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -20,13 +37,20 @@ export default function ForecastControls({ sku, onSku, modelId, onModel, horizon
         </label>
 
         <label className="block">
-          <span className="text-xs font-mono uppercase tracking-widest text-slate-400">Horizon</span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono uppercase tracking-widest text-slate-400">Horizon</span>
+            {maxSafeHorizon && (
+              <span className="text-[10px] font-semibold text-sky-600 dark:text-sky-400 font-mono">
+                Cap: {maxSafeHorizon}d safe
+              </span>
+            )}
+          </div>
           <select
-            value={horizon}
+            value={horizon || dynamicOptions[dynamicOptions.length - 1]?.value || 27}
             onChange={(e) => onHorizon(Number(e.target.value))}
             className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none dark:border-white/10 dark:bg-slate-900 dark:text-slate-200"
           >
-            {horizonOptions.map((o) => (
+            {dynamicOptions.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>

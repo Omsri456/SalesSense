@@ -36,21 +36,13 @@ class ForecastService:
     def get_forecast(
         store_id: str,
         product_id: str,
-        horizon_days: int = 90,
+        horizon_days: Optional[int] = None,
     ) -> ForecastResponse:
         """
         Retrieves or generates forecasts using real MongoDB data and trained champion models,
         integrating stockout-aware demand recovery (Research Alignment §3).
+        Bounds forecast horizon dynamically to available training history.
         """
-        cache_key = f"{store_id}_{product_id}_{horizon_days}"
-        now = time.time()
-
-        if cache_key in _CACHE:
-            entry = _CACHE[cache_key]
-            if now - entry["timestamp"] < _CACHE_TTL:
-                logger.info("Serving forecast for %s from cache", cache_key)
-                return entry["data"]
-
         # 1. Load series data from MongoDB or CSV cache
         raw_df = load_series_data(store_id=store_id if store_id != "all" else None, product_id=product_id if product_id != "all" else None)
         if raw_df.empty:
@@ -66,6 +58,55 @@ class ForecastService:
                 status_code=404,
                 detail=f"Insufficient observations after preprocessing for store '{store_id}' and product '{product_id}'",
             )
+
+        # Compute available chronological history and safe horizon cap
+        time_col = "timestamp" if "timestamp" in featured_df.columns else "dt"
+        dates = pd.to_datetime(featured_df[time_col]).dt.date
+        history_days = max(1, (dates.max() - dates.min()).days + 1)
+        train_ratio = 0.8
+        training_days = max(1, int(round(history_days * train_ratio)))
+
+        # Sane maximum horizon rule: roughly 30-40% of the 80% training window
+        # For 97-day authentic dataset (78 train days), this evaluates to 27 days.
+        max_safe_horizon = max(7, int(round(training_days * 0.35)))
+
+        # Candidate discrete horizons for UI selection
+        cand_horizons = [h for h in [7, 14, 21, 30, 60, 90, 180] if h < max_safe_horizon]
+        if not cand_horizons:
+            cand_horizons = [max(1, max_safe_horizon // 2)]
+        if max_safe_horizon not in cand_horizons:
+            cand_horizons.append(max_safe_horizon)
+        available_horizons = sorted(list(set(cand_horizons)))
+
+        # Handle horizon clamping and confidence flagging
+        requested_horizon = horizon_days
+        is_clamped = False
+        clamped_from = None
+        warning_msg = None
+
+        if horizon_days is None:
+            effective_horizon = max_safe_horizon
+        elif horizon_days > max_safe_horizon:
+            effective_horizon = max_safe_horizon
+            is_clamped = True
+            clamped_from = horizon_days
+            warning_msg = (
+                f"Requested horizon of {horizon_days} days exceeds statistically safe limit "
+                f"({max_safe_horizon} days, ~35% of {training_days}-day training window for {history_days}-day series). "
+                f"Horizon has been safely bounded to {max_safe_horizon} days to prevent runaway ARIMA drift."
+            )
+            logger.warning("Clamped horizon for %s/%s from %d to %d days", store_id, product_id, horizon_days, max_safe_horizon)
+        else:
+            effective_horizon = max(1, horizon_days)
+
+        cache_key = f"{store_id}_{product_id}_{requested_horizon}"
+        now = time.time()
+
+        if cache_key in _CACHE:
+            entry = _CACHE[cache_key]
+            if now - entry["timestamp"] < _CACHE_TTL:
+                logger.info("Serving forecast for %s from cache", cache_key)
+                return entry["data"]
 
         # 2b. Research Alignment: Recover latent demand from stockout-censored observations!
         featured_df = censored_demand_service.estimate_latent_demand(featured_df)
@@ -88,7 +129,6 @@ class ForecastService:
             champion_reason += f" (Trained on stockout-recovered latent demand across {censored_recs} censored periods)."
 
         # 4. Monthly/Weekly Aggregation for UI Presentation
-        time_col = "timestamp" if "timestamp" in featured_df.columns else "dt"
         featured_df["period_m"] = pd.to_datetime(featured_df[time_col]).dt.to_period("M")
         monthly_groups = featured_df.groupby("period_m")["sale_amount"].sum()
         latent_col = "estimated_latent_demand" if "estimated_latent_demand" in featured_df.columns else "sale_amount"
@@ -123,8 +163,8 @@ class ForecastService:
 
         baseline_sales = int(recent_months.iloc[-1]) if len(recent_months) > 0 else 1000
 
-        # 5. Forward-horizon forecasting
-        steps_hours = horizon_days * 24
+        # 5. Forward-horizon forecasting bounded to effective horizon
+        steps_hours = effective_horizon * 24
         if champion_model is not None:
             infer_steps = min(steps_hours, 720)
             mean_preds, lower_b, upper_b = champion_model.predict(infer_steps)
@@ -132,17 +172,17 @@ class ForecastService:
         else:
             daily_pred_avg = float(baseline_sales / 30.0)
 
-        # Build horizon months
-        months_ahead = max(1, min(12, round(horizon_days / 30)))
+        # Build horizon months/periods
+        months_ahead = max(1, min(12, round(effective_horizon / 30)))
         last_date = pd.to_datetime(featured_df[time_col].iloc[-1])
-        future_periods = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=months_ahead * 30, freq="D")
+        future_periods = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=max(1, effective_horizon), freq="D")
         future_months = future_periods.to_period("M").unique()
 
         forecast_points: List[ForecastDataPoint] = []
         total_predicted = 0
         growth_trend = 1.0 + (0.02 if champion_metrics["r2"] > 0.5 else 0.01)
 
-        curr_month_sales = daily_pred_avg * 30.0
+        curr_month_sales = daily_pred_avg * min(30.0, float(effective_horizon))
         for i, p in enumerate(future_months[:months_ahead]):
             curr_month_sales *= growth_trend
             m_label = p.strftime("%b")
@@ -189,7 +229,7 @@ class ForecastService:
         response = ForecastResponse(
             store_id=store_id,
             product_id=product_id,
-            horizon_days=horizon_days,
+            horizon_days=effective_horizon,
             confidence=round(champion_metrics["accuracy"], 1),
             growthPct=growth_pct,
             totalPredicted=total_predicted,
@@ -198,6 +238,13 @@ class ForecastService:
             chartData=chart_points,
             forecast=forecast_points,
             average_recovery_confidence=round(float(featured_df["recovery_confidence"].mean()), 2) if "recovery_confidence" in featured_df.columns else 1.0,
+            max_safe_horizon=max_safe_horizon,
+            history_days=history_days,
+            training_days=training_days,
+            is_clamped=is_clamped,
+            clamped_from=clamped_from,
+            warning=warning_msg,
+            available_horizons=available_horizons,
         )
 
         _CACHE[cache_key] = {"timestamp": now, "data": response}

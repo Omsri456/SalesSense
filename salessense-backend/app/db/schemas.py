@@ -68,12 +68,19 @@ class ForecastResponse(BaseModel):
     chartData: List[ChartDataPoint]
     forecast: List[ForecastDataPoint]
     average_recovery_confidence: Optional[float] = None
+    max_safe_horizon: Optional[int] = None
+    history_days: Optional[int] = None
+    training_days: Optional[int] = None
+    is_clamped: Optional[bool] = False
+    clamped_from: Optional[int] = None
+    warning: Optional[str] = None
+    available_horizons: Optional[List[int]] = None
 
 
 class ForecastRequest(BaseModel):
     store_id: str = "STORE_01"
     product_id: str = "all"
-    horizon_days: int = 90
+    horizon_days: Optional[int] = None
 
 
 class ProductItem(BaseModel):

@@ -84,7 +84,7 @@ export default function Dashboard() {
         setError(null)
         const [insightsRes, fcRes, heatRes, catRes] = await Promise.allSettled([
           api.getDashboardInsights(selectedStore, sku),
-          api.getForecast(selectedStore, sku, 90),
+          api.getForecast(selectedStore, sku),
           api.getDashboardHeatmap(selectedStore),
           api.getCategoryTrends(selectedStore),
         ])

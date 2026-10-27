@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { generateForecast } from '../data/forecastData';
 
-export function useForecast({ sku = 'all', modelId = 'lstm', horizonDays = 90 }) {
-  const [data, setData] = useState(() => generateForecast({ sku, modelId, horizonDays }));
+export function useForecast({ sku = 'all', modelId = 'lstm', horizonDays = null }) {
+  const [data, setData] = useState(() => generateForecast({ sku, modelId, horizonDays: horizonDays || 27 }));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isLive, setIsLive] = useState(false);

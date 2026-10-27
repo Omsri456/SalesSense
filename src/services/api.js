@@ -119,8 +119,9 @@ export const api = {
   /**
    * Get forecast result for a specific store and product
    */
-  async getForecast(storeId, productId, horizonDays = 90) {
-    return apiFetch(`/forecast/${storeId}/${productId}?horizon_days=${horizonDays}`);
+  async getForecast(storeId, productId, horizonDays = null) {
+    const query = horizonDays != null ? `?horizon_days=${horizonDays}` : '';
+    return apiFetch(`/forecast/${storeId}/${productId}${query}`);
   },
 
   /**

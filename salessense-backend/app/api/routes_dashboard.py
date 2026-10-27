@@ -115,7 +115,7 @@ async def get_dashboard_insights(
 
     # 2. Forecast Tournament Metrics
     try:
-        fc_res = forecast_service.get_forecast(store_id, sku, horizon_days=90)
+        fc_res = forecast_service.get_forecast(store_id, sku, horizon_days=None)
         best_model = fc_res.best_model
         champ_name = best_model.name if best_model else "BiLSTM Network"
         wmape = best_model.metrics.wmape if best_model and best_model.metrics else 0.082
