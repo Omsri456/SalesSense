@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { Layers, ChevronRight, ChevronDown, Package, Sparkles } from 'lucide-react'
 
 const HIERARCHY_LEVELS = [
@@ -72,13 +72,13 @@ export default function HierarchyLevelSwitcher({
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[700px] text-sm">
             <thead>
-              <tr className="border-b border-slate-100 text-left text-xs font-mono uppercase tracking-widest text-slate-400 dark:border-white/10">
-                <th className="pb-2 text-left">Hierarchy Node</th>
-                <th className="pb-2 text-right">Gross Revenue</th>
-                <th className="pb-2 text-right">Units Sold</th>
-                <th className="pb-2 text-right">Lost Sales Estimate</th>
-                <th className="pb-2 text-right">Constituent SKUs</th>
-                <th className="pb-2 text-center">Drilldown</th>
+              <tr className="border-b border-slate-100 text-xs font-mono uppercase tracking-widest text-slate-400 dark:border-white/10">
+                <th className="py-3 px-3 text-left">Hierarchy Node</th>
+                <th className="py-3 px-3 text-right">Gross Revenue</th>
+                <th className="py-3 px-3 text-right">Units Sold</th>
+                <th className="py-3 px-3 text-right">Lost Sales Estimate</th>
+                <th className="py-3 px-3 text-right">Constituent SKUs</th>
+                <th className="py-3 px-3 text-center">Drilldown</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 dark:divide-white/5">
@@ -87,90 +87,96 @@ export default function HierarchyLevelSwitcher({
                 const hasChildren = item.constituent_skus && item.constituent_skus.length > 0 && level !== 'sku'
 
                 return (
-                  <tr key={item.id} className="group">
-                    <td colSpan={6} className="p-0">
-                      <div
-                        onClick={() => hasChildren && toggleExpand(item.id)}
-                        className={`flex items-center justify-between py-3 px-2 rounded-xl transition ${
-                          hasChildren ? 'cursor-pointer hover:bg-slate-50/80 dark:hover:bg-white/5' : ''
-                        }`}
-                      >
-                        <div className="w-1/4 flex items-center gap-2">
-                          {hasChildren && (
-                            <span className="text-slate-400">
-                              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  <Fragment key={item.id}>
+                    <tr
+                      onClick={() => hasChildren && toggleExpand(item.id)}
+                      className={`group transition ${
+                        hasChildren ? 'cursor-pointer hover:bg-slate-50/80 dark:hover:bg-white/5' : ''
+                      }`}
+                    >
+                      <td className="py-3.5 px-3">
+                        <div className="flex items-center gap-2">
+                          {hasChildren ? (
+                            <span className="text-slate-400 transition-transform">
+                              {isExpanded ? <ChevronDown className="h-4 w-4 text-primary" /> : <ChevronRight className="h-4 w-4" />}
                             </span>
+                          ) : (
+                            <span className="w-4 inline-block" />
                           )}
                           <div>
                             <p className="font-semibold text-slate-800 dark:text-slate-100">{item.name}</p>
                             <p className="text-[11px] font-mono text-slate-400">ID: {item.id}</p>
                           </div>
                         </div>
+                      </td>
 
-                        <div className="w-1/6 text-right font-mono font-medium text-slate-800 dark:text-slate-200">
-                          ${Math.round(item.total_revenue).toLocaleString()}
-                        </div>
+                      <td className="py-3.5 px-3 text-right font-mono font-medium text-slate-800 dark:text-slate-200">
+                        ${Math.round(item.total_revenue).toLocaleString()}
+                      </td>
 
-                        <div className="w-1/6 text-right font-mono text-slate-600 dark:text-slate-300">
-                          {item.units_sold.toLocaleString()} units
-                        </div>
+                      <td className="py-3.5 px-3 text-right font-mono text-slate-600 dark:text-slate-300">
+                        {item.units_sold.toLocaleString()} units
+                      </td>
 
-                        <div className="w-1/6 text-right font-mono">
-                          {item.lost_revenue_estimate > 0 ? (
-                            <span className="text-rose-500 font-semibold">
-                              ${Math.round(item.lost_revenue_estimate).toLocaleString()}
-                            </span>
-                          ) : (
-                            <span className="text-slate-300 dark:text-slate-600">$0</span>
-                          )}
-                        </div>
+                      <td className="py-3.5 px-3 text-right font-mono">
+                        {item.lost_revenue_estimate > 0 ? (
+                          <span className="text-rose-500 font-semibold">
+                            ${Math.round(item.lost_revenue_estimate).toLocaleString()}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 dark:text-slate-600">$0</span>
+                        )}
+                      </td>
 
-                        <div className="w-1/6 text-right font-mono text-xs text-slate-500 dark:text-slate-400">
-                          {item.sku_count} {item.sku_count === 1 ? 'SKU' : 'SKUs'}
-                        </div>
+                      <td className="py-3.5 px-3 text-right font-mono text-xs text-slate-500 dark:text-slate-400">
+                        {item.sku_count} {item.sku_count === 1 ? 'SKU' : 'SKUs'}
+                      </td>
 
-                        <div className="w-1/12 text-center">
-                          {hasChildren ? (
-                            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                              {isExpanded ? 'Collapse' : 'Inspect SKUs'}
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-slate-300 dark:text-slate-600">Leaf Grain</span>
-                          )}
-                        </div>
-                      </div>
+                      <td className="py-3.5 px-3 text-center">
+                        {hasChildren ? (
+                          <span className="inline-block rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                            {isExpanded ? 'Collapse' : 'Inspect SKUs'}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-300 dark:text-slate-600">Leaf Grain</span>
+                        )}
+                      </td>
+                    </tr>
 
-                      {/* Drilldown Sub-table */}
-                      {isExpanded && item.constituent_skus && (
-                        <div className="my-2 ml-6 mr-2 rounded-xl border border-primary/20 bg-primary/5 p-3 dark:border-primary/30 dark:bg-primary/10">
-                          <p className="mb-2 text-xs font-mono uppercase tracking-wider text-primary font-bold">
-                            Constituent SKUs inside {item.name}:
-                          </p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                            {item.constituent_skus.map((sku) => (
-                              <div
-                                key={sku.product_id}
-                                className="rounded-lg border border-slate-200/80 bg-white p-2.5 shadow-2xs dark:border-white/10 dark:bg-slate-800"
-                              >
-                                <div className="flex items-center justify-between">
-                                  <p className="font-semibold text-xs text-slate-800 dark:text-slate-100 truncate">
-                                    {sku.product_name}
-                                  </p>
-                                  <span className="font-mono text-xs font-semibold text-primary">
-                                    ${Math.round(sku.revenue).toLocaleString()}
-                                  </span>
+                    {/* Drilldown Sub-table */}
+                    {isExpanded && item.constituent_skus && (
+                      <tr className="bg-primary/[0.02]">
+                        <td colSpan={6} className="px-3 pb-4 pt-1">
+                          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 dark:border-primary/30 dark:bg-primary/10">
+                            <p className="mb-2 text-xs font-mono uppercase tracking-wider text-primary font-bold">
+                              Constituent SKUs inside {item.name}:
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                              {item.constituent_skus.map((sku) => (
+                                <div
+                                  key={sku.product_id}
+                                  className="rounded-lg border border-slate-200/80 bg-white p-2.5 shadow-2xs dark:border-white/10 dark:bg-slate-800"
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <p className="font-semibold text-xs text-slate-800 dark:text-slate-100 truncate">
+                                      {sku.product_name}
+                                    </p>
+                                    <span className="font-mono text-xs font-semibold text-primary">
+                                      ${Math.round(sku.revenue).toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                                    <span>{sku.product_id} · ${sku.unit_price}</span>
+                                    <span>{sku.shelf_life_days}d shelf life</span>
+                                  </div>
                                 </div>
-                                <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400 font-mono">
-                                  <span>{sku.product_id} · ${sku.unit_price}</span>
-                                  <span>{sku.shelf_life_days}d shelf life</span>
-                                </div>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 )
               })}
             </tbody>
