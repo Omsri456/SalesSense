@@ -90,24 +90,29 @@ function buildReportCsv(type, storeId, dateRange, data) {
   } else if (type === 'forecast-accuracy') {
     lines.push(['--- HISTORICAL FORECAST ACCURACY TRACKING (FR-14) ---'])
     lines.push(['Recent Tournament Champion', data.recent_champion || 'N/A'])
-    lines.push(['Recent Holdout wMAPE', Number(data.recent_wmape || 0).toFixed(4)])
+    lines.push(['Recent Holdout wMAPE', data.recent_wmape != null ? Number(data.recent_wmape).toFixed(4) : 'N/A'])
     lines.push(['Accuracy Improvement Pct', `${data.accuracy_improvement_pct || 0}%`])
     lines.push(['Total Windows Evaluated', data.total_evaluation_windows || 0])
+    lines.push(['Status', data.message || (data.total_evaluation_windows === 0 ? 'Insufficient run history yet' : 'Active history')])
     lines.push([])
-    lines.push(['Window Label', 'Evaluation Date', 'Champion Model', 'Champion wMAPE', 'Champion RMSE', 'Champion R2', 'SARIMA wMAPE', 'Prophet wMAPE', 'LSTM wMAPE'])
-    ;(data.history || []).forEach((h) => {
-      lines.push([
-        h.window,
-        h.evaluation_date,
-        h.champion_model,
-        Number(h.champion_wmape || 0).toFixed(4),
-        Number(h.champion_rmse || 0).toFixed(2),
-        Number(h.champion_r2 || 0).toFixed(4),
-        Number(h.models?.SARIMA?.wmape || 0).toFixed(4),
-        Number(h.models?.Prophet?.wmape || 0).toFixed(4),
-        Number(h.models?.LSTM?.wmape || 0).toFixed(4),
-      ])
-    })
+    if ((data.history || []).length === 0) {
+      lines.push(['Note: No historical tournament runs recorded yet for this store/product. Run model retraining to accumulate accuracy tracking windows.'])
+    } else {
+      lines.push(['Window Label', 'Evaluation Date', 'Champion Model', 'Champion wMAPE', 'Champion RMSE', 'Champion R2', 'SARIMA wMAPE', 'Prophet wMAPE', 'LSTM wMAPE'])
+      data.history.forEach((h) => {
+        lines.push([
+          h.window,
+          h.evaluation_date || h.evaluation_timestamp,
+          h.champion_model,
+          Number(h.champion_wmape || 0).toFixed(4),
+          Number(h.champion_rmse || 0).toFixed(2),
+          Number(h.champion_r2 || 0).toFixed(4),
+          Number(h.models?.SARIMA?.wmape || 0).toFixed(4),
+          Number(h.models?.Prophet?.wmape || 0).toFixed(4),
+          Number(h.models?.LSTM?.wmape || 0).toFixed(4),
+        ])
+      })
+    }
   } else if (type === 'model-comparison') {
     const list = Array.isArray(data) ? data : []
     lines.push(['--- TOURNAMENT MODEL BENCHMARK COMPARISON ---'])
@@ -183,21 +188,28 @@ function buildReportHtml(type, typeLabel, storeId, dateRange, data) {
     contentHtml = `
       <div class="kpi-grid">
         <div class="kpi-card"><span class="kpi-label">Recent Champion</span><span class="kpi-val">${data.recent_champion || 'N/A'}</span></div>
-        <div class="kpi-card"><span class="kpi-label">Recent wMAPE</span><span class="kpi-val">${Number(data.recent_wmape || 0).toFixed(4)}</span></div>
+        <div class="kpi-card"><span class="kpi-label">Recent wMAPE</span><span class="kpi-val">${data.recent_wmape != null ? Number(data.recent_wmape).toFixed(4) : 'N/A'}</span></div>
         <div class="kpi-card"><span class="kpi-label">Accuracy Gain</span><span class="kpi-val">${data.accuracy_improvement_pct || 0}%</span></div>
+        <div class="kpi-card"><span class="kpi-label">Evaluation Windows</span><span class="kpi-val">${data.total_evaluation_windows || 0}</span></div>
       </div>
       <h3>Historical Accuracy Tracking Windows</h3>
-      <table>
-        <thead><tr><th>Window</th><th>Date</th><th>Champion</th><th>Champion wMAPE</th><th>RMSE</th><th>R2</th><th>SARIMA wMAPE</th><th>Prophet wMAPE</th><th>LSTM wMAPE</th></tr></thead>
-        <tbody>
-          ${history
-            .map(
-              (h) =>
-                `<tr><td>${h.window}</td><td>${h.evaluation_date}</td><td><strong>${h.champion_model}</strong></td><td>${Number(h.champion_wmape).toFixed(4)}</td><td>${Number(h.champion_rmse).toFixed(2)}</td><td>${Number(h.champion_r2).toFixed(4)}</td><td>${Number(h.models?.SARIMA?.wmape || 0).toFixed(4)}</td><td>${Number(h.models?.Prophet?.wmape || 0).toFixed(4)}</td><td>${Number(h.models?.LSTM?.wmape || 0).toFixed(4)}</td></tr>`
-            )
-            .join('')}
-        </tbody>
-      </table>
+      ${
+        history.length === 0
+          ? `<div style="padding: 16px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 13px;">
+               ${data.message || 'Insufficient run history yet. Historical tracking accumulates as tournaments are evaluated over time.'}
+             </div>`
+          : `<table>
+              <thead><tr><th>Window</th><th>Date</th><th>Champion</th><th>Champion wMAPE</th><th>RMSE</th><th>R2</th><th>SARIMA wMAPE</th><th>Prophet wMAPE</th><th>LSTM wMAPE</th></tr></thead>
+              <tbody>
+                ${history
+                  .map(
+                    (h) =>
+                      `<tr><td>${h.window}</td><td>${h.evaluation_date || h.evaluation_timestamp}</td><td><strong>${h.champion_model}</strong></td><td>${Number(h.champion_wmape).toFixed(4)}</td><td>${Number(h.champion_rmse).toFixed(2)}</td><td>${Number(h.champion_r2).toFixed(4)}</td><td>${Number(h.models?.SARIMA?.wmape || 0).toFixed(4)}</td><td>${Number(h.models?.Prophet?.wmape || 0).toFixed(4)}</td><td>${Number(h.models?.LSTM?.wmape || 0).toFixed(4)}</td></tr>`
+                  )
+                  .join('')}
+              </tbody>
+            </table>`
+      }
     `
   } else if (type === 'model-comparison') {
     const list = Array.isArray(data) ? data : []

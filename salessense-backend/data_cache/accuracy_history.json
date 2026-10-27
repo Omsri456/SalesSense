@@ -1,0 +1,68 @@
+[
+  {
+    "id": "3dd8559d-5bc3-4eaf-bde8-9e359f80bd94",
+    "window": "Tournament Run #1 (2026-10-27 02:55:52)",
+    "evaluation_date": "2026-10-27",
+    "evaluation_timestamp": "2026-10-27 02:55:52",
+    "store_id": "STORE_01",
+    "product_id": "all",
+    "champion_model": "SARIMA",
+    "champion_wmape": 0.4567,
+    "champion_rmse": 8.0,
+    "champion_r2": 0.8457,
+    "champion_mae": 2.17,
+    "models": {
+      "SARIMA": {
+        "wmape": 0.4567,
+        "rmse": 8.0,
+        "r2": 0.8457,
+        "mae": 2.17
+      },
+      "Prophet": {
+        "wmape": 1.1033,
+        "rmse": 19.48,
+        "r2": 0.0851,
+        "mae": 5.24
+      },
+      "LSTM": {
+        "wmape": 1.7887,
+        "rmse": 26.23,
+        "r2": -0.6588,
+        "mae": 8.49
+      }
+    }
+  },
+  {
+    "id": "667ad21f-3725-4dfc-9865-d306aa12f5e2",
+    "window": "Tournament Run #2 (2026-10-27 02:56:21)",
+    "evaluation_date": "2026-10-27",
+    "evaluation_timestamp": "2026-10-27 02:56:21",
+    "store_id": "STORE_01",
+    "product_id": "all",
+    "champion_model": "SARIMA",
+    "champion_wmape": 0.4567,
+    "champion_rmse": 8.0,
+    "champion_r2": 0.8457,
+    "champion_mae": 2.17,
+    "models": {
+      "SARIMA": {
+        "wmape": 0.4567,
+        "rmse": 8.0,
+        "r2": 0.8457,
+        "mae": 2.17
+      },
+      "Prophet": {
+        "wmape": 1.1033,
+        "rmse": 19.48,
+        "r2": 0.0851,
+        "mae": 5.24
+      },
+      "LSTM": {
+        "wmape": 0.6816,
+        "rmse": 6.06,
+        "r2": 0.9114,
+        "mae": 3.23
+      }
+    }
+  }
+]

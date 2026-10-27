@@ -76,6 +76,20 @@ def _run_tournament(store_id: str = "STORE_01", product_id: str = "all") -> List
         "summaries": model_summaries,
         "trajectory": backtest_res.get("trajectory", []),
     }
+
+    # Persist authentic tournament run in real accuracy history (FR-14)
+    try:
+        from app.services.accuracy_service import record_tournament_run
+        record_tournament_run(
+            store_id=store_id,
+            product_id=product_id,
+            champion_name=backtest_res["champion_name"],
+            champion_metrics=backtest_res["champion_metrics"],
+            model_summaries=model_summaries,
+        )
+    except Exception as e:
+        logger.warning("Could not record tournament run to accuracy history: %s", e)
+
     return model_summaries
 
 
