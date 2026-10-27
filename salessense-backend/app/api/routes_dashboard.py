@@ -67,12 +67,20 @@ async def get_dashboard_insights(
             "upcoming_alerts": [],
         }
 
-    # Slice by sku if specified
-    active_slice = store_slice if sku == "all" else store_slice[store_slice["product_id"] == sku]
+    # Slice by sku or category if specified
+    if sku == "all":
+        active_slice = store_slice
+    elif sku.startswith("cat:"):
+        cat_name = sku.split("cat:", 1)[1]
+        active_slice = store_slice[store_slice["category"].astype(str).str.lower() == cat_name.lower()]
+    else:
+        active_slice = store_slice[store_slice["product_id"] == sku]
+
     if active_slice.empty:
+        label = f"Category '{sku.split('cat:', 1)[1]}'" if sku.startswith("cat:") else f"SKU '{sku}'"
         return {
             "has_data": False,
-            "message": f"No sales observations found for SKU '{sku}' in store '{store_id}'.",
+            "message": f"No sales observations found for {label} in store '{store_id}'.",
             "store_id": store_id,
             "kpis": [],
             "what_changed": [],
@@ -133,7 +141,8 @@ async def get_dashboard_insights(
     expiry_skus = []
     low_stock_skus = []
 
-    for pid, pgroup in store_slice.groupby("product_id"):
+    waste_slice = active_slice if sku != "all" else store_slice
+    for pid, pgroup in waste_slice.groupby("product_id"):
         first_row = pgroup.iloc[0]
         cat = str(first_row.get("category", "General"))
         price = float(first_row.get("unit_price", 5.0))
@@ -207,11 +216,18 @@ async def get_dashboard_insights(
         top_cat = cat_group.index[0]
         top_cat_rev = cat_group.iloc[0]
         cat_share = (top_cat_rev / gross_rev * 100.0) if gross_rev > 0 else 0.0
-        what_changed.append({
-            "type": "category_trend",
-            "text": f"{top_cat} category led store demand with ${round(top_cat_rev):,} ({cat_share:.1f}% of total sales).",
-            "time": "Active Horizon",
-        })
+        if sku.startswith("cat:"):
+            what_changed.append({
+                "type": "category_trend",
+                "text": f"{top_cat} category total demand reached ${round(top_cat_rev):,} across {skus_count} active items.",
+                "time": "Active Horizon",
+            })
+        else:
+            what_changed.append({
+                "type": "category_trend",
+                "text": f"{top_cat} category led store demand with ${round(top_cat_rev):,} ({cat_share:.1f}% of total sales).",
+                "time": "Active Horizon",
+            })
 
     # Stockout attribution
     sku_lost = active_slice.groupby(["product_id", "product_name"])["lost_revenue_estimate"].sum().sort_values(ascending=False)

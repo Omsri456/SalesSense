@@ -166,3 +166,21 @@ def test_dashboard_hierarchy_aggregation():
     )
     assert res_ret_forbidden.status_code == 403
 
+
+def test_dashboard_insights_category_aggregation():
+    """Verify category rollup (sku='cat:Produce') computes authentic KPIs."""
+    token = _get_token("admin@salessense.com")
+    res = client.get(
+        "/api/dashboard/insights?store_id=STORE_01&sku=cat:Produce",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200, res.text
+    data = res.json()
+    assert data["has_data"] is True
+    assert data["store_id"] == "STORE_01"
+    assert data["sku"] == "cat:Produce"
+    assert len(data["kpis"]) == 4
+    kpi_ids = [k["id"] for k in data["kpis"]]
+    assert "gross_revenue" in kpi_ids
+
+

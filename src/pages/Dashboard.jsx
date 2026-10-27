@@ -299,7 +299,7 @@ export default function Dashboard() {
       ) : (
         <>
           <div className="mt-4">
-            <ProductSnapshotCard sku={sku} />
+            <ProductSnapshotCard sku={sku} products={products} />
           </div>
 
           {/* Authentic KPIs computed directly from API */}

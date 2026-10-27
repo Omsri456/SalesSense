@@ -4,21 +4,58 @@ import { withComputed } from '../lib/inventoryMath'
 
 const statusStyle = {
   critical: { text: 'text-red-500', bg: 'bg-red-500/10', label: 'Critical' },
-  low: { text: 'text-accent', bg: 'bg-accent/10', label: 'Low Stock' },
-  healthy: { text: 'text-secondary', bg: 'bg-secondary/10', label: 'Healthy' },
+  low: { text: 'text-amber-500', bg: 'bg-amber-500/10', label: 'Low Stock' },
+  healthy: { text: 'text-emerald-500', bg: 'bg-emerald-500/10', label: 'Healthy' },
 }
 
-export default function ProductSnapshotCard({ sku }) {
+export default function ProductSnapshotCard({ sku, products = [] }) {
   if (sku === 'all') {
     return (
-      <div className="flex items-center gap-4 rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-sm text-slate-500 dark:border-white/10 dark:bg-slate-800/60 dark:text-slate-400">
-        <PackageSearch className="h-5 w-5 shrink-0 text-slate-300" />
-        Showing aggregate data across all products. Pick a single product above for its stock health, category and reorder status.
+      <div className="flex items-center gap-4 rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-500 dark:border-white/10 dark:bg-slate-800/60 dark:text-slate-400">
+        <PackageSearch className="h-5 w-5 shrink-0 text-slate-400" />
+        <span>
+          Showing aggregate data across all products. Pick a specific product or category above for focused intelligence.
+        </span>
       </div>
     )
   }
 
-  const item = inventoryItems.find((i) => i.id === sku)
+  if (sku.startsWith('cat:')) {
+    const categoryName = sku.split('cat:')[1]
+    return (
+      <div className="flex items-center gap-4 rounded-2xl border border-primary/20 bg-primary/5 p-4 text-sm text-slate-700 dark:border-primary/20 dark:bg-primary/10 dark:text-slate-300">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+          <Layers className="h-5 w-5" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">
+            Category Rollup: {categoryName}
+          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Displaying rolled-up warehouse demand, stockouts, and tournament forecast for all constituent {categoryName} items. Select a specific SKU to inspect item-level buffer stock and replenishment.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Look up item in dynamic products or legacy inventoryItems
+  const dynamicItem = products.find((p) => p.value === sku)
+  const legacyItem = inventoryItems.find((i) => i.id === sku)
+
+  const item = dynamicItem
+    ? {
+        id: dynamicItem.value,
+        name: dynamicItem.label,
+        category: dynamicItem.category || 'General',
+        warehouse: 'Warehouse A',
+        stock: dynamicItem.currentStock ?? 45,
+        dailySales: Math.max(1, Math.round((dynamicItem.reorderPoint || 30) / (dynamicItem.leadTimeDays || 3))),
+        leadTimeDays: dynamicItem.leadTimeDays || 3,
+        unitCost: dynamicItem.unitCost || 5.0,
+      }
+    : legacyItem
+
   if (!item) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-400 dark:border-white/10 dark:bg-slate-800/60">
@@ -28,7 +65,7 @@ export default function ProductSnapshotCard({ sku }) {
   }
 
   const computed = withComputed(item, 3)
-  const st = statusStyle[computed.status]
+  const st = statusStyle[computed.status] || statusStyle.healthy
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-800/60">
