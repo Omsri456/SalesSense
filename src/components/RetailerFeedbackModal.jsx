@@ -153,7 +153,7 @@ export default function RetailerFeedbackModal({ isOpen, onClose, item, storeId, 
                   onChange={(e) => setActualStock(e.target.value)}
                   placeholder="e.g. 45"
                   required
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono text-slate-800 focus:border-primary focus:bg-white focus:outline-none dark:border-white/10 dark:bg-slate-700 dark:text-slate-100"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono text-slate-900 placeholder-slate-400 focus:border-primary focus:bg-white focus:outline-none dark:border-white/10 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-primary dark:focus:bg-slate-800"
                 />
               </div>
             )}
@@ -170,7 +170,7 @@ export default function RetailerFeedbackModal({ isOpen, onClose, item, storeId, 
                   onChange={(e) => setReorderQty(e.target.value)}
                   placeholder="e.g. 50"
                   required
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono text-slate-800 focus:border-primary focus:bg-white focus:outline-none dark:border-white/10 dark:bg-slate-700 dark:text-slate-100"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono text-slate-900 placeholder-slate-400 focus:border-primary focus:bg-white focus:outline-none dark:border-white/10 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-primary dark:focus:bg-slate-800"
                 />
               </div>
             )}
@@ -189,7 +189,7 @@ export default function RetailerFeedbackModal({ isOpen, onClose, item, storeId, 
                     ? 'e.g. Local heatwave increased demand by 40% over model prediction.'
                     : 'e.g. Verified by physical count in warehouse aisle 3.'
                 }
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-800 focus:border-primary focus:bg-white focus:outline-none dark:border-white/10 dark:bg-slate-700 dark:text-slate-100"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-900 placeholder-slate-400 focus:border-primary focus:bg-white focus:outline-none dark:border-white/10 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-primary dark:focus:bg-slate-800"
               />
             </div>
 
