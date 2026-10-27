@@ -25,10 +25,13 @@ from app.data.preprocessing import preprocess_series
 from app.services.censored_demand_service import censored_demand_service
 from app.evaluation.backtest import run_chronological_backtest
 
+import threading
+
 logger = logging.getLogger("salessense.services.forecast")
 
 _CACHE: Dict[str, Dict[str, Any]] = {}
 _CACHE_TTL = 1800  # 30 minutes
+_CACHE_LOCK = threading.Lock()
 
 
 class ForecastService:
@@ -43,6 +46,16 @@ class ForecastService:
         integrating stockout-aware demand recovery (Research Alignment §3).
         Bounds forecast horizon dynamically to available training history.
         """
+        cache_key = f"{store_id}_{product_id}_{horizon_days}"
+        now = time.time()
+
+        with _CACHE_LOCK:
+            if cache_key in _CACHE:
+                entry = _CACHE[cache_key]
+                if now - entry["timestamp"] < _CACHE_TTL:
+                    logger.info("Serving forecast for %s from cache", cache_key)
+                    return entry["data"]
+
         # 1. Load series data from MongoDB or CSV cache
         raw_df = load_series_data(store_id=store_id if store_id != "all" else None, product_id=product_id if product_id != "all" else None)
         if raw_df.empty:
@@ -99,21 +112,12 @@ class ForecastService:
         else:
             effective_horizon = max(1, horizon_days)
 
-        cache_key = f"{store_id}_{product_id}_{requested_horizon}"
-        now = time.time()
-
-        if cache_key in _CACHE:
-            entry = _CACHE[cache_key]
-            if now - entry["timestamp"] < _CACHE_TTL:
-                logger.info("Serving forecast for %s from cache", cache_key)
-                return entry["data"]
-
         # 2b. Research Alignment: Recover latent demand from stockout-censored observations!
         featured_df = censored_demand_service.estimate_latent_demand(featured_df)
         censored_recs = int(featured_df["is_censored"].sum()) if "is_censored" in featured_df.columns else 0
 
-        # Choose modeling target: unconstrained latent demand if stockouts exist, else observed sales
-        target_col = "estimated_latent_demand" if "estimated_latent_demand" in featured_df.columns else "sale_amount"
+        # Choose modeling target: actual observed sales demand for accurate sales forecasting
+        target_col = "sale_amount"
 
         # 3. Chronological Backtest and Champion Selection (FR-5, FR-6, DR-7)
         backtest_window = featured_df.tail(min(len(featured_df), 1200)).reset_index(drop=True)
@@ -126,7 +130,7 @@ class ForecastService:
         champion_model = fitted_models.get(champion_name)
 
         if censored_recs > 0:
-            champion_reason += f" (Trained on stockout-recovered latent demand across {censored_recs} censored periods)."
+            champion_reason += f" (Monitored alongside stockout-recovered latent demand across {censored_recs} censored periods)."
 
         # 4. Monthly/Weekly Aggregation for UI Presentation
         featured_df["period_m"] = pd.to_datetime(featured_df[time_col]).dt.to_period("M")
@@ -137,13 +141,25 @@ class ForecastService:
         has_stockout = "is_stockout_affected" in featured_df.columns
         monthly_conf = featured_df.groupby("period_m")["recovery_confidence"].mean() if has_conf else {}
         monthly_stockout = featured_df.groupby("period_m")["is_stockout_affected"].max() if has_stockout else {}
-        recent_months = monthly_groups.tail(6)
+
+        all_periods = list(monthly_groups.items())
+        last_period, last_period_sales = all_periods[-1]
+        days_in_last_period = len(pd.to_datetime(featured_df[featured_df["period_m"] == last_period][time_col]).dt.date.unique())
+        is_partial_last_month = days_in_last_period < 7
+
+        # For historical monthly presentation: if the last month is a short stub (e.g. 2 days of July),
+        # display the completed historical months so there is no artificial drop
+        if is_partial_last_month and len(all_periods) > 1:
+            recent_list = all_periods[:-1][-5:]
+            baseline_sales = int(recent_list[-1][1]) if len(recent_list) > 0 else 1000
+        else:
+            recent_list = all_periods[-6:]
+            baseline_sales = int(recent_list[-1][1]) if len(recent_list) > 0 else 1000
 
         chart_points: List[ChartDataPoint] = []
-        recent_list = list(recent_months.items())
         for idx, (period, total_sales) in enumerate(recent_list):
             m_label = period.strftime("%b")
-            is_last = idx == len(recent_list) - 1
+            is_last = (idx == len(recent_list) - 1)
             latent_val = int(round(monthly_latent.get(period, total_sales)))
             lost_val = max(0, latent_val - int(total_sales))
             conf_val = round(float(monthly_conf.get(period, 1.0)), 2) if has_conf else 1.0
@@ -161,8 +177,6 @@ class ForecastService:
                 )
             )
 
-        baseline_sales = int(recent_months.iloc[-1]) if len(recent_months) > 0 else 1000
-
         # 5. Forward-horizon forecasting bounded to effective horizon
         steps_hours = effective_horizon * 24
         if champion_model is not None:
@@ -172,34 +186,32 @@ class ForecastService:
         else:
             daily_pred_avg = float(baseline_sales / 30.0)
 
-        # Build horizon months/periods
-        months_ahead = max(1, min(12, round(effective_horizon / 30)))
+        # Smooth forward monthly projection anchored to proven daily run rate
+        daily_baseline = float(baseline_sales / 30.0)
+        bounded_daily_pred = float(np.clip(daily_pred_avg, daily_baseline * 0.85, daily_baseline * 1.25))
+
         last_date = pd.to_datetime(featured_df[time_col].iloc[-1])
-        future_periods = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=max(1, effective_horizon), freq="D")
-        future_months = future_periods.to_period("M").unique()
+        if is_partial_last_month:
+            fc_label = f"{last_period.strftime('%b')} (Fcst)"
+        else:
+            next_period = (last_date + pd.Timedelta(days=1)).to_period("M")
+            fc_label = next_period.strftime("%b")
 
-        forecast_points: List[ForecastDataPoint] = []
-        total_predicted = 0
-        growth_trend = 1.0 + (0.02 if champion_metrics["r2"] > 0.5 else 0.01)
+        growth_trend = 1.0 + (0.015 if champion_metrics.get("r2", 0) > 0.5 else 0.005)
+        projected_val = int(round(bounded_daily_pred * 30.0 * growth_trend))
 
-        curr_month_sales = daily_pred_avg * min(30.0, float(effective_horizon))
-        for i, p in enumerate(future_months[:months_ahead]):
-            curr_month_sales *= growth_trend
-            m_label = p.strftime("%b")
-            predicted_val = int(round(curr_month_sales))
-            band = 0.08 + i * 0.02
-            low = int(predicted_val * (1.0 - band))
-            high = int(predicted_val * (1.0 + band))
+        band = 0.08
+        low = int(projected_val * (1.0 - band))
+        high = int(projected_val * (1.0 + band))
 
-            total_predicted += predicted_val
-            forecast_points.append(
-                ForecastDataPoint(month=m_label, predicted=predicted_val, low=low, high=high)
-            )
-            chart_points.append(
-                ChartDataPoint(month=m_label, forecast=predicted_val, predicted=predicted_val, low=low, high=high)
-            )
-
-        growth_pct = round(((curr_month_sales - baseline_sales) / max(1, baseline_sales)) * 100, 1)
+        forecast_points: List[ForecastDataPoint] = [
+            ForecastDataPoint(month=fc_label, predicted=projected_val, low=low, high=high)
+        ]
+        chart_points.append(
+            ChartDataPoint(month=fc_label, forecast=projected_val, predicted=projected_val, low=low, high=high)
+        )
+        total_predicted = projected_val
+        growth_pct = round(((projected_val - baseline_sales) / max(1, baseline_sales)) * 100, 1)
 
         # Format Best Model Details
         best_model_details = BestModelDetails(

@@ -10,14 +10,14 @@ class SarimaForecastModel(BaseForecastModel):
     Tuned on retail monthly or weekly cyclical sales patterns.
     """
 
-    def __init__(self, order=(2, 1, 2), seasonal_order=(1, 1, 1, 12)):
+    def __init__(self, order=(1, 1, 1), seasonal_order=(1, 0, 0, 7)):
         super().__init__(name="SARIMA", model_type="Statistical")
         self.order = order
         self.seasonal_order = seasonal_order
         self.hyperparameters = {
             "Order": str(order),
             "Seasonal order": str(seasonal_order),
-            "Seasonal period": seasonal_order[3] if len(seasonal_order) > 3 else 12,
+            "Seasonal period": seasonal_order[3] if len(seasonal_order) > 3 else 7,
         }
         self.fitted_model = None
         self.last_value = 0.0
@@ -33,7 +33,7 @@ class SarimaForecastModel(BaseForecastModel):
                 enforce_stationarity=False,
                 enforce_invertibility=False,
             )
-            self.fitted_model = model.fit(disp=False)
+            self.fitted_model = model.fit(disp=False, maxiter=25)
             self.is_fitted = True
             self.last_value = float(train_series.iloc[-1])
         except Exception:

@@ -19,12 +19,12 @@ class LSTMForecastModel(BaseForecastModel):
     def __init__(
         self,
         lookback: int = 24,
-        hidden_dim: int = 64,
-        num_layers: int = 2,
-        dropout: float = 0.2,
-        epochs: int = 35,
-        batch_size: int = 32,
-        learning_rate: float = 0.001,
+        hidden_dim: int = 32,
+        num_layers: int = 1,
+        dropout: float = 0.1,
+        epochs: int = 12,
+        batch_size: int = 64,
+        learning_rate: float = 0.005,
     ):
         super().__init__(name="LSTM", model_type="Deep Learning")
         self.lookback = lookback

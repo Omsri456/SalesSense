@@ -105,8 +105,15 @@ class CensoredDemandService:
         active_velocity = obs / in_stock_hours.astype(float)
         bench_hourly_velocity = bench_mean / 16.0
         blended_velocity = 0.5 * active_velocity + 0.5 * bench_hourly_velocity
-        additional_lost = np.where(censored, np.round(blended_velocity * lost_hours, 2), 0.0)
-        reconstructed = np.where(censored, np.round(obs + additional_lost, 2), obs)
+        raw_additional_lost = np.where(censored, np.round(blended_velocity * lost_hours, 2), 0.0)
+        raw_reconstructed = np.where(censored, np.round(obs + raw_additional_lost, 2), obs)
+
+        # Grounding & Capping (Wang et al., 2025 FreshRetailNet-50K §3)
+        # Latent customer demand cannot blow up beyond reasonable upper bound of in-stock baseline.
+        # Bounded to at most 1.4x of observed sales or 1.35x of comparable in-stock baseline.
+        upper_bound = np.maximum(obs * 1.4, bench_mean * 1.35)
+        reconstructed = np.clip(raw_reconstructed, obs, upper_bound)
+        additional_lost = np.maximum(0.0, reconstructed - obs)
 
         sample_penalty = np.minimum(1.0, bench_count / 5.0)
         duration_penalty = np.maximum(0.2, (16 - lost_hours) / 16.0)

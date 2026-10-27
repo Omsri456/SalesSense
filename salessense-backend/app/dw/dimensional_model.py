@@ -333,9 +333,15 @@ class DimensionalModelEngine:
         # Financial measures
         fact_daily["observed_sales"] = fact_daily["sale_amount"].round(2)
         fact_daily["unit_price"] = fact_daily["unit_price"].round(2)
-        fact_daily["discount"] = fact_daily["discount"].round(3)
-        fact_daily["gross_revenue"] = (fact_daily["observed_sales"] * fact_daily["unit_price"] * (1.0 - fact_daily["discount"])).round(2)
-        fact_daily["lost_revenue_estimate"] = (fact_daily["lost_sales_estimate"] * fact_daily["unit_price"]).round(2)
+        # In FreshRetailNet-50K, discount represents the selling price ratio P / P_orig (e.g. 0.85 = 85% of full price).
+        # If discount is 0 or NaN, effective multiplier is 1.0. If discount > 0 and <= 1.0, it is the price factor.
+        price_factor = np.where(
+            (fact_daily["discount"] > 0) & (fact_daily["discount"] <= 1.0),
+            fact_daily["discount"],
+            1.0,
+        )
+        fact_daily["gross_revenue"] = (fact_daily["observed_sales"] * fact_daily["unit_price"] * price_factor).round(2)
+        fact_daily["lost_revenue_estimate"] = (fact_daily["lost_sales_estimate"] * fact_daily["unit_price"] * price_factor).round(2)
         fact_daily["estimation_method"] = "Tobit-Empirical-Rate"
         fact_daily["promotion_key"] = 1
         fact_daily["fact_id"] = np.arange(1, len(fact_daily) + 1)
