@@ -3,6 +3,7 @@ import DashboardLayout from '../layouts/DashboardLayout'
 import ModelCard from '../components/ModelCard'
 import ModelDetailsPanel from '../components/ModelDetailsPanel'
 import ModelComparisonChart from '../components/ModelComparisonChart'
+import ModelTrajectoryComparisonChart from '../components/ModelTrajectoryComparisonChart'
 import RetailerFeedbackPanel from '../components/RetailerFeedbackPanel'
 import { api } from '../services/api'
 import { useAuth } from '../context/AuthContext'
@@ -21,6 +22,7 @@ function buildEpochHistory(finalAccuracy, epochs = 10) {
 export default function Models() {
   const { user } = useAuth()
   const [models, setModels] = useState(initialModels)
+  const [trajectories, setTrajectories] = useState([])
   const [selectedId, setSelectedId] = useState(initialModels[0].id)
   const [isTraining, setIsTraining] = useState(false)
   const [selectionRationale, setSelectionRationale] = useState(null)
@@ -30,6 +32,9 @@ export default function Models() {
     try {
       const data = await api.getModels()
       if (Array.isArray(data) && data.length > 0) {
+        if (data[0]?.trajectory && data[0].trajectory.length > 0) {
+          setTrajectories(data[0].trajectory)
+        }
         const mapped = data.map((m) => {
           const acc = m.metrics?.accuracy || 90.0
           return {
@@ -46,10 +51,22 @@ export default function Models() {
             description: m.description,
             hyperparameters: m.hyperparameters || {},
             epochHistory: buildEpochHistory(acc),
+            predictions: m.predictions || [],
+            trajectory: m.trajectory || [],
           }
         })
         setModels(mapped)
         setIsLive(true)
+      }
+
+      // Also try fetching explicit trajectory endpoint
+      try {
+        const trajRes = await api.getModelTrajectories()
+        if (trajRes?.trajectory && trajRes.trajectory.length > 0) {
+          setTrajectories(trajRes.trajectory)
+        }
+      } catch (tErr) {
+        // Fallback to data[0].trajectory
       }
     } catch (err) {
       console.warn('Using local models fallback:', err)
@@ -147,6 +164,14 @@ export default function Models() {
           ))}
         </div>
 
+        {/* Real Holdout Trajectory Comparison Chart */}
+        <ModelTrajectoryComparisonChart
+          trajectory={trajectories}
+          championName={bestModel.name}
+          models={models}
+        />
+
+        {/* Quick Ranking Bar Chart */}
         <ModelComparisonChart models={models} selectedId={selectedId} />
 
         <ModelDetailsPanel model={selectedModel} />

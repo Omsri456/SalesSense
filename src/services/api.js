@@ -151,6 +151,13 @@ export const api = {
   },
 
   /**
+   * Get actual vs model predicted holdout trajectories
+   */
+  async getModelTrajectories(storeId = 'STORE_01') {
+    return apiFetch(`/models/trajectories?store_id=${storeId}`);
+  },
+
+  /**
    * Censoring analysis summary
    */
   async getCensoringSummary() {

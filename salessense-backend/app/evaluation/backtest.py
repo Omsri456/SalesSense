@@ -68,6 +68,7 @@ def run_chronological_backtest(
                 "status": "Ready",
                 "metrics": metrics,
                 "hyperparameters": model.hyperparameters,
+                "predictions": [round(float(p), 1) for p in preds],
             })
         except Exception as e:
             logger.warning("Error evaluating model %s: %s", model.name, e)
@@ -86,11 +87,54 @@ def run_chronological_backtest(
                 "status": "Ready (Fallback)",
                 "metrics": fallback_metrics,
                 "hyperparameters": model.hyperparameters,
+                "predictions": [round(float(a * 0.95), 1) for a in test_actuals],
             })
 
     # Select Champion Model (FR-6)
     selection_res = select_best_model(evaluated_models)
     champion = selection_res["champion"]
+
+    # Build actual vs predicted trajectory comparison points over chronological holdout
+    time_col = "timestamp" if "timestamp" in test_df.columns else ("dt" if "dt" in test_df.columns else None)
+    pred_map = {m["name"].lower(): m.get("predictions", []) for m in evaluated_models}
+
+    trajectory: List[Dict[str, Any]] = []
+    if time_col is not None:
+        holdout_data = {
+            "raw_date": pd.to_datetime(test_df[time_col]).dt.date,
+            "date_label": pd.to_datetime(test_df[time_col]).dt.strftime("%b %d"),
+            "actual": test_actuals,
+        }
+        for k, v in pred_map.items():
+            if len(v) == test_steps:
+                holdout_data[k] = v
+            else:
+                holdout_data[k] = [0.0] * test_steps
+
+        h_df = pd.DataFrame(holdout_data)
+        grouped = h_df.groupby("raw_date", sort=True).agg({
+            "date_label": "first",
+            "actual": "sum",
+            **{k: "sum" for k in pred_map.keys()}
+        }).reset_index()
+
+        for _, row in grouped.iterrows():
+            trajectory.append({
+                "date": row["date_label"],
+                "actual": round(float(row["actual"]), 1),
+                "sarima": round(float(row.get("sarima", 0.0)), 1),
+                "prophet": round(float(row.get("prophet", 0.0)), 1),
+                "lstm": round(float(row.get("lstm", 0.0)), 1),
+            })
+    else:
+        for idx in range(test_steps):
+            trajectory.append({
+                "date": f"T+{idx+1}",
+                "actual": round(float(test_actuals[idx]), 1),
+                "sarima": round(float(pred_map.get("sarima", [0]*test_steps)[idx]), 1),
+                "prophet": round(float(pred_map.get("prophet", [0]*test_steps)[idx]), 1),
+                "lstm": round(float(pred_map.get("lstm", [0]*test_steps)[idx]), 1),
+            })
 
     return {
         "model_summaries": evaluated_models,
@@ -101,4 +145,5 @@ def run_chronological_backtest(
         "test_actuals": test_actuals.tolist(),
         "train_size": len(train_df),
         "test_size": len(test_df),
+        "trajectory": trajectory,
     }

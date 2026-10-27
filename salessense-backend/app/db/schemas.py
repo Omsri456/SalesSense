@@ -54,6 +54,8 @@ class ModelSummary(BaseModel):
     status: str
     trainedAt: str
     hyperparameters: Optional[Dict[str, Any]] = None
+    predictions: Optional[List[float]] = None
+    trajectory: Optional[List[Dict[str, Any]]] = None
 
 
 class ForecastResponse(BaseModel):

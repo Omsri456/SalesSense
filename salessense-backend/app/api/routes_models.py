@@ -62,6 +62,8 @@ def _run_tournament(store_id: str = "STORE_01", product_id: str = "all") -> List
                 trainedAt="Just now",
                 metrics=ModelMetrics(**m["metrics"]),
                 hyperparameters=m.get("hyperparameters", {}),
+                predictions=m.get("predictions"),
+                trajectory=backtest_res.get("trajectory", []),
             )
         )
 
@@ -72,8 +74,28 @@ def _run_tournament(store_id: str = "STORE_01", product_id: str = "all") -> List
         "champion": backtest_res["champion_name"],
         "reason": backtest_res["champion_reason"],
         "summaries": model_summaries,
+        "trajectory": backtest_res.get("trajectory", []),
     }
     return model_summaries
+
+
+@router.get("/trajectories")
+async def get_model_trajectories(
+    store_id: str = Query("STORE_01", description="Store ID to benchmark"),
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    Returns actual observed demand vs holdout predictions for SARIMA, Prophet, and LSTM
+    across the chronological validation window.
+    """
+    if "latest" not in _MODEL_CACHE or (time.time() - _MODEL_CACHE["latest"]["timestamp"] >= 900) or _MODEL_CACHE["latest"]["store_id"] != store_id:
+        _run_tournament(store_id=store_id, product_id="all")
+    cached = _MODEL_CACHE.get("latest", {})
+    return {
+        "store_id": store_id,
+        "champion_name": cached.get("champion"),
+        "trajectory": cached.get("trajectory", []),
+    }
 
 
 @router.get("", response_model=List[ModelSummary])
